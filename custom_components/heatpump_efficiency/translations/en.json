@@ -1,0 +1,338 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a heat pump",
+        "description": "Name the heat pump and choose its energy statistics. Output and electricity are added up per service. Expand a section to use it.",
+        "sections": {
+          "heating": {
+            "name": "Heating",
+            "description": "Space heating. Leave the output and electrical statistics empty to leave this service out. A defrost heat statistic alone does not add this service; it corrects Overall when Overall is configured.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since",
+              "defrost_heat": "Defrost heat statistics"
+            },
+            "data_description": {
+              "output": "One or more statistics of the heat delivered (energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history.",
+              "defrost_heat": "Optional. One or more statistics of the heat a defrost takes from the heating circuit (energy with a running sum, for example kWh). They are added together and subtracted from this service's output; Overall subtracts the sum of the Heating and Hot water statistics. A statistic may be mapped only once. It does not configure the service by itself, but it corrects Overall. Leave it empty when your heat meter already counts the heat that flows back during a defrost."
+            }
+          },
+          "hot_water": {
+            "name": "Hot water",
+            "description": "Domestic hot water. Leave the output and electrical statistics empty to leave this service out. A defrost heat statistic alone does not add this service; it corrects Overall when Overall is configured.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since",
+              "defrost_heat": "Defrost heat statistics"
+            },
+            "data_description": {
+              "output": "One or more statistics of the heat delivered (energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history.",
+              "defrost_heat": "Optional. One or more statistics of the heat a defrost takes from the hot water circuit (energy with a running sum, for example kWh). They are added together and subtracted from this service's output; Overall subtracts the sum of the Heating and Hot water statistics. A statistic may be mapped only once. It does not configure the service by itself, but it corrects Overall. Leave it empty when your heat meter already counts the heat that flows back during a defrost."
+            }
+          },
+          "cooling": {
+            "name": "Cooling",
+            "description": "Cooling. Leave both statistic lists empty to leave this service out.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since",
+              "unit": "Cooling efficiency unit"
+            },
+            "data_description": {
+              "output": "One or more statistics of the cooling energy delivered (heat removed; energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history.",
+              "unit": "W/W (the default) or BTU/Wh, where BTU/Wh = W/W x 3.412142. It applies to every Cooling efficiency figure; Overall stays W/W. Only kept when Cooling is configured."
+            }
+          },
+          "overall": {
+            "name": "Overall",
+            "description": "The whole heat pump, for example from a whole-unit electricity meter that includes standby. Leave both statistic lists empty to leave Overall out.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since"
+            },
+            "data_description": {
+              "output": "One or more statistics of the heat delivered (energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history."
+            }
+          },
+          "seasons": {
+            "name": "Season dates",
+            "description": "The heating and cooling seasons, as a month and a day each. They recur every year; a season whose start is later in the year than its end crosses the new year. 29 February is not allowed: an end on 28 February includes 29 February in a leap year. The start and the end of a season must differ.",
+            "data": {
+              "heating_start_month": "Heating season starts: month",
+              "heating_start_day": "Heating season starts: day",
+              "heating_end_month": "Heating season ends: month",
+              "heating_end_day": "Heating season ends: day",
+              "cooling_start_month": "Cooling season starts: month",
+              "cooling_start_day": "Cooling season starts: day",
+              "cooling_end_month": "Cooling season ends: month",
+              "cooling_end_day": "Cooling season ends: day"
+            },
+            "data_description": {
+              "heating_start_month": "The first day of the heating season (its month).",
+              "heating_start_day": "The first day of the heating season (its day, 1 to 31).",
+              "heating_end_month": "The last day of the heating season (its month).",
+              "heating_end_day": "The last day of the heating season (its day, 1 to 31).",
+              "cooling_start_month": "The first day of the cooling season (its month).",
+              "cooling_start_day": "The first day of the cooling season (its day, 1 to 31).",
+              "cooling_end_month": "The last day of the cooling season (its month).",
+              "cooling_end_day": "The last day of the cooling season (its day, 1 to 31)."
+            }
+          }
+        },
+        "data": {
+          "name": "Name"
+        },
+        "data_description": {
+          "name": "The name of this heat pump. You can add the integration again for a second heat pump."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Enter a name for this heat pump.",
+      "nothing_mapped": "Choose the output and electrical energy statistics of at least one service or Overall.",
+      "electricity_missing": "Output statistics are chosen but electrical energy statistics are not. Choose the electrical energy statistics of this section too.",
+      "output_missing": "Electrical energy statistics are chosen but output statistics are not. Choose the output energy statistics of this section too.",
+      "statistic_missing": "These statistics do not exist in the recorder: {missing}",
+      "statistic_not_energy": "These are not energy statistics (for example power in W): {not_energy}",
+      "statistic_no_sum": "These statistics have no running sum (they are mean-only): {no_sum}",
+      "season_invalid_day": "A day in the season dates does not exist in its month (for example 31 April). 29 February is not allowed; use 28 February as an end, which includes 29 February in a leap year.",
+      "season_missing": "A season date is empty. Choose the month and the day of all four season dates.",
+      "season_same_day": "A season starts and ends on the same day. Choose different start and end days.",
+      "defrost_duplicate": "A defrost heat statistic may be mapped only once. These are chosen in both Heating and Hot water, or also as an output or electrical statistic: {duplicate}",
+      "defrost_unused": "The defrost heat statistics of this section correct nothing: the service is not configured and Overall is not either. Configure this service or Overall, or clear the defrost heat statistics."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Heat pump mapping",
+        "description": "Change the statistics, defrost heat statistics, measured-since dates, season dates and Cooling efficiency unit. The sensors use the new configuration after the entry reloads.",
+        "sections": {
+          "heating": {
+            "name": "Heating",
+            "description": "Space heating. Leave the output and electrical statistics empty to leave this service out. A defrost heat statistic alone does not add this service; it corrects Overall when Overall is configured.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since",
+              "defrost_heat": "Defrost heat statistics"
+            },
+            "data_description": {
+              "output": "One or more statistics of the heat delivered (energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history.",
+              "defrost_heat": "Optional. One or more statistics of the heat a defrost takes from the heating circuit (energy with a running sum, for example kWh). They are added together and subtracted from this service's output; Overall subtracts the sum of the Heating and Hot water statistics. A statistic may be mapped only once. It does not configure the service by itself, but it corrects Overall. Leave it empty when your heat meter already counts the heat that flows back during a defrost."
+            }
+          },
+          "hot_water": {
+            "name": "Hot water",
+            "description": "Domestic hot water. Leave the output and electrical statistics empty to leave this service out. A defrost heat statistic alone does not add this service; it corrects Overall when Overall is configured.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since",
+              "defrost_heat": "Defrost heat statistics"
+            },
+            "data_description": {
+              "output": "One or more statistics of the heat delivered (energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history.",
+              "defrost_heat": "Optional. One or more statistics of the heat a defrost takes from the hot water circuit (energy with a running sum, for example kWh). They are added together and subtracted from this service's output; Overall subtracts the sum of the Heating and Hot water statistics. A statistic may be mapped only once. It does not configure the service by itself, but it corrects Overall. Leave it empty when your heat meter already counts the heat that flows back during a defrost."
+            }
+          },
+          "cooling": {
+            "name": "Cooling",
+            "description": "Cooling. Leave both statistic lists empty to leave this service out.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since",
+              "unit": "Cooling efficiency unit"
+            },
+            "data_description": {
+              "output": "One or more statistics of the cooling energy delivered (heat removed; energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history.",
+              "unit": "W/W (the default) or BTU/Wh, where BTU/Wh = W/W x 3.412142. It applies to every Cooling efficiency figure; Overall stays W/W. Only kept when Cooling is configured."
+            }
+          },
+          "overall": {
+            "name": "Overall",
+            "description": "The whole heat pump, for example from a whole-unit electricity meter that includes standby. Leave both statistic lists empty to leave Overall out.",
+            "data": {
+              "output": "Output energy statistics",
+              "electricity": "Electrical energy statistics",
+              "measured_since": "Measured since"
+            },
+            "data_description": {
+              "output": "One or more statistics of the heat delivered (energy with a running sum, for example kWh). They are added together. External statistics are accepted.",
+              "electricity": "One or more statistics of the electricity used for this service (energy with a running sum). They are added together. Required when an output statistic is chosen.",
+              "measured_since": "Optional. The first day for which the history is measured rather than estimated. Earlier points and periods are marked as including estimated history."
+            }
+          },
+          "seasons": {
+            "name": "Season dates",
+            "description": "The heating and cooling seasons, as a month and a day each. They recur every year; a season whose start is later in the year than its end crosses the new year. 29 February is not allowed: an end on 28 February includes 29 February in a leap year. The start and the end of a season must differ.",
+            "data": {
+              "heating_start_month": "Heating season starts: month",
+              "heating_start_day": "Heating season starts: day",
+              "heating_end_month": "Heating season ends: month",
+              "heating_end_day": "Heating season ends: day",
+              "cooling_start_month": "Cooling season starts: month",
+              "cooling_start_day": "Cooling season starts: day",
+              "cooling_end_month": "Cooling season ends: month",
+              "cooling_end_day": "Cooling season ends: day"
+            },
+            "data_description": {
+              "heating_start_month": "The first day of the heating season (its month).",
+              "heating_start_day": "The first day of the heating season (its day, 1 to 31).",
+              "heating_end_month": "The last day of the heating season (its month).",
+              "heating_end_day": "The last day of the heating season (its day, 1 to 31).",
+              "cooling_start_month": "The first day of the cooling season (its month).",
+              "cooling_start_day": "The first day of the cooling season (its day, 1 to 31).",
+              "cooling_end_month": "The last day of the cooling season (its month).",
+              "cooling_end_day": "The last day of the cooling season (its day, 1 to 31)."
+            }
+          }
+        }
+      },
+      "unit_change": {
+        "title": "Change the Cooling efficiency unit",
+        "description": "Home Assistant cannot convert the existing long-term statistics of the Cooling sensors to the new unit. Sensors with statistics: {sensors}. After you save, it reports the unit change as a repair, and offers its fix in the statistics developer tools. Until you fix the statistics there, or change the unit back, Home Assistant stops compiling new long-term statistics for the affected Cooling sensors. This integration never changes statistics. The daily, monthly and season figures follow the new unit straight away. Choose Submit to save the change; close this dialog to keep the current unit."
+      }
+    },
+    "error": {
+      "nothing_mapped": "Choose the output and electrical energy statistics of at least one service or Overall.",
+      "electricity_missing": "Output statistics are chosen but electrical energy statistics are not. Choose the electrical energy statistics of this section too.",
+      "output_missing": "Electrical energy statistics are chosen but output statistics are not. Choose the output energy statistics of this section too.",
+      "statistic_missing": "These statistics do not exist in the recorder: {missing}",
+      "statistic_not_energy": "These are not energy statistics (for example power in W): {not_energy}",
+      "statistic_no_sum": "These statistics have no running sum (they are mean-only): {no_sum}",
+      "season_invalid_day": "A day in the season dates does not exist in its month (for example 31 April). 29 February is not allowed; use 28 February as an end, which includes 29 February in a leap year.",
+      "season_missing": "A season date is empty. Choose the month and the day of all four season dates.",
+      "season_same_day": "A season starts and ends on the same day. Choose different start and end days.",
+      "defrost_duplicate": "A defrost heat statistic may be mapped only once. These are chosen in both Heating and Hot water, or also as an output or electrical statistic: {duplicate}",
+      "defrost_unused": "The defrost heat statistics of this section correct nothing: the service is not configured and Overall is not either. Configure this service or Overall, or clear the defrost heat statistics."
+    }
+  },
+  "issues": {
+    "statistic_missing": {
+      "title": "Statistic missing for {heat_pump}",
+      "description": "The statistic {statistic_id} mapped for {heat_pump} no longer exists, for example because the entity was renamed or removed. The sensors that use it are unknown. Open the heat pump entry, choose Configure and map a statistic that exists."
+    },
+    "statistic_not_energy": {
+      "title": "Statistic is not an energy statistic for {heat_pump}",
+      "description": "The statistic {statistic_id} mapped for {heat_pump} does not have an energy unit (for example it is power in W). Open the heat pump entry, choose Configure and map an energy statistic, or restore the energy unit of the source."
+    },
+    "statistic_no_sum": {
+      "title": "Statistic has no running sum for {heat_pump}",
+      "description": "The statistic {statistic_id} mapped for {heat_pump} has no running sum, so energy changes cannot be calculated. Open the heat pump entry, choose Configure and map a statistic with a running sum, such as a total increasing energy sensor."
+    },
+    "statistic_stale": {
+      "title": "Statistic stopped updating for {heat_pump}",
+      "description": "The statistic {statistic_id} mapped for {heat_pump} has had no new statistics for more than 2 hours. Last statistics time: {last_statistics}. Until it reports again, the efficiency sensors of its service or Overall count energy only up to that time, and are unknown when that time is before today. Check its source; an external statistic must be at most 2 hours behind."
+    },
+    "statistic_stale_no_rows": {
+      "title": "Statistic has no recent statistics for {heat_pump}",
+      "description": "The statistic {statistic_id} mapped for {heat_pump} has had no statistics today or in the last 3 hours. The sensors that use it are unknown until it reports. Check its source; an external statistic must be at most 2 hours behind."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "heating_today": {
+        "name": "Heating today"
+      },
+      "heating_month_to_date": {
+        "name": "Heating month to date"
+      },
+      "heating_year_to_date": {
+        "name": "Heating year to date"
+      },
+      "heating_rolling_12_months": {
+        "name": "Heating rolling 12 months"
+      },
+      "heating_heating_season": {
+        "name": "Heating heating season"
+      },
+      "hot_water_today": {
+        "name": "Hot water today"
+      },
+      "hot_water_month_to_date": {
+        "name": "Hot water month to date"
+      },
+      "hot_water_year_to_date": {
+        "name": "Hot water year to date"
+      },
+      "hot_water_rolling_12_months": {
+        "name": "Hot water rolling 12 months"
+      },
+      "cooling_today": {
+        "name": "Cooling today"
+      },
+      "cooling_month_to_date": {
+        "name": "Cooling month to date"
+      },
+      "cooling_year_to_date": {
+        "name": "Cooling year to date"
+      },
+      "cooling_rolling_12_months": {
+        "name": "Cooling rolling 12 months"
+      },
+      "cooling_cooling_season": {
+        "name": "Cooling cooling season"
+      },
+      "overall_today": {
+        "name": "Overall today"
+      },
+      "overall_month_to_date": {
+        "name": "Overall month to date"
+      },
+      "overall_year_to_date": {
+        "name": "Overall year to date"
+      },
+      "overall_rolling_12_months": {
+        "name": "Overall rolling 12 months"
+      },
+      "overall_heating_season": {
+        "name": "Overall heating season"
+      }
+    }
+  },
+  "selector": {
+    "month": {
+      "options": {
+        "1": "January",
+        "2": "February",
+        "3": "March",
+        "4": "April",
+        "5": "May",
+        "6": "June",
+        "7": "July",
+        "8": "August",
+        "9": "September",
+        "10": "October",
+        "11": "November",
+        "12": "December"
+      }
+    },
+    "cooling_unit": {
+      "options": {
+        "w_per_w": "W/W",
+        "btu_per_wh": "BTU/Wh"
+      }
+    }
+  }
+}

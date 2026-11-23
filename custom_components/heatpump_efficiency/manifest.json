@@ -1,0 +1,12 @@
+{
+  "domain": "heatpump_efficiency",
+  "name": "Heat Pump Efficiency",
+  "codeowners": ["@peeter123"],
+  "config_flow": true,
+  "dependencies": ["recorder"],
+  "documentation": "https://github.com/peeter123/ha-heatpump-efficiency",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/peeter123/ha-heatpump-efficiency/issues",
+  "version": "0.1.0"
+}

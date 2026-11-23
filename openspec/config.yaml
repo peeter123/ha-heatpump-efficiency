@@ -1,0 +1,100 @@
+# constitution: 2026-11-23
+schema: spec-driven
+
+context: |
+  A Home Assistant custom integration that shows any heat pump's real efficiency over a period (today, month to
+  date, year to date, rolling 12 months, per day and per month) as a ratio of energy changes from Home Assistant's
+  long-term statistics, never as a time average of instantaneous COPs. Universal: an owner maps their own energy
+  statistics in a setup UI (config flow and options flow). Developed against one live installation (an Ecoforest
+  ecoGEO bridged by the author's own ESPHome firmware (not public), which provides per-service
+  electrical counters, Total Metered Energy and a backfill of their history), but meant to be published on GitHub
+  and installed through HACS by others.
+
+  This folder is its own git repo; its files never reference paths outside it. Nothing installation-specific
+  (entity IDs of the author's devices, hostnames, IPs, dashboard ids, tokens) may ship in code, tests,
+  translations, examples or docs meant for others; installation notes and captures belong in the git-ignored
+  private/ folder only (private/installation.md). The live installation's defaults may appear in docs only as a
+  clearly labelled example.
+
+  Safety: never copy the integration to the Home Assistant host, restart Home Assistant, add or reconfigure the
+  config entry, change a dashboard, commit, push, tag or release without explicit user authorization. The standing
+  exceptions are the planning-artifact commit and the per-group commit below; they never extend to pushing. The
+  live installation must keep working throughout every change. Live-installation steps need the user's go-ahead
+  each time, are done in the session with the user, and edit no repository files. Offer a Home Assistant backup
+  before a restart that installs or upgrades the integration.
+
+  The integration reads Home Assistant statistics and writes nothing to them: it never imports, adjusts or clears
+  statistics, never calls services on other integrations and never controls a heat pump. It creates only its own
+  entities and repair issues.
+
+  Never read or print Home Assistant tokens or secrets.yaml; scripts read them themselves. Tests use synthetic
+  data only; fixtures built from real history replace every identifier with a made-up one.
+
+  Target: Home Assistant Core 2026.11.2 (the installed release; verify every Home Assistant API used against the
+  core source at that tag and cite file and function in the design). Integration code in
+  custom_components/<domain>/ (HACS layout, manifest version, no requirements beyond Home Assistant itself). All
+  arithmetic (ratios, the 0.1 kWh rule, period ranges in the Home Assistant timezone, caching decisions) lives in
+  a module that imports nothing from Home Assistant, unit-tested with the Python standard library. Glue code that
+  needs Home Assistant is kept thin; it is verified on the live installation, not by offline tests with
+  third-party packages.
+
+  Sources of truth, and how artifacts cite them:
+  - ha-core: the Home Assistant Core source at tag 2026.11.2 (file and function).
+  - ha-docs: developers.home-assistant.io or home-assistant.io pages.
+  - firmware-entity: the entities of the author's own ESPHome firmware, used only as the live example mapping.
+  - derived: a value the integration computes; every derived value names its inputs and is a pure, unit-tested
+    function.
+  Verify every external API against its pinned source, not memory.
+
+  Tooling: the Python standard library only; no virtual environments and no third-party packages, nothing taken
+  from PATH beyond Python itself (on Windows, the time zone tests also need the tzdata package; see AGENTS.md).
+  Validation: python -m unittest discover tests and python -m compileall custom_components; check exit codes.
+  Generated files (the OpenSpec skills that openspec update writes) are never edited by hand.
+
+  Plain text only in names, labels and UI strings: no emoji. All user-facing text goes through translations
+  (translations/en.json).
+
+  Documentation: README.md is the entry point and describes the current state. Every behaviour change updates the
+  docs in the same task group; superseded text is removed; no line-number citations.
+
+  Before a task group starts, uncommitted changes in openspec/changes/<change-id>/ get a commit of their own,
+  staged by explicit path: subject "Add planning artifacts for <change-id>" the first time, "Update planning
+  artifacts for <change-id>" after that, and a body that says what changed. This covers the start of apply and
+  changes made between groups; artifact edits made during a group go into that group's commit and are named in its
+  body.
+
+  Every task group gets its own commit, after its validation passes and its review is clean: its implementation
+  files and its tasks.md check-offs, staged by explicit path (never git add -A or git add .), leaving unrelated
+  working-tree changes unstaged and private/ ignored. Never batch groups, split a group across commits, amend an
+  earlier group's commit, or push. The message has an imperative subject line and a body that starts
+  "Group <n> of <change-id>:" and summarizes what the group delivered.
+
+rules:
+  proposal:
+    - State explicitly what is out of scope and which follow-up change covers it.
+    - Mark each external fact with its source tag (ha-core, ha-docs, firmware-entity, derived).
+    - State whether the change touches the live installation (install, restart, config entry, dashboard), and how.
+    - For new capability, name the existing tools, libraries or components that were checked, and why each is
+      used or not. Build new only when none fits.
+  design:
+    - Cite the source (file and function, or document) behind every decision that depends on an external API; for
+      Home Assistant, the ha-core file and function.
+    - Name the inputs of every derived value and where its pure function lives.
+  specs:
+    - Write scenarios that a standard-library unit test can check offline, or that name the live check
+      explicitly; no scenario depends on installation-specific identifiers.
+  tasks:
+    - "Organize tasks into numbered groups (## 1., ## 2., ...) that can each be implemented and reviewed in a fresh session, relying only on the change artifacts and the repository."
+    - Size each task group as one coherent commit that leaves the repository consistent (the validation commands pass); do not add commit tasks, since the apply workflow commits each group.
+    - Update README.md in the group that changes behaviour; never collect docs into a final group.
+    - Mark live-installation steps with their required authorization, and put them in a final group.
+
+operations:
+  apply:
+    guidance:
+      - Read AGENTS.md before editing.
+      - Check git status first and preserve unrelated working-tree changes.
+      - Work one task group at a time, starting at the first group in tasks.md with unchecked tasks. tasks.md is the only progress state carried between sessions.
+      - Before each group, commit uncommitted changes to the change's planning artifacts first, as described in context.
+      - Check off completed tasks in tasks.md only after the validation commands pass.
+      - Commit each group as described in context; never push.
