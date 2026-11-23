@@ -23,16 +23,17 @@
 
 ## 4. Publish the first release
 
-- [ ] 4.1 [User authorization: rewrites the local history] Create `backup/pre-release` at `main`, then replace `main` with one root commit of the same tree (design D8), message "Heat Pump Efficiency 0.1.0" with a body summarising the integration; verify `git rev-list --count main` is 1, `git diff backup/pre-release main` is empty and the working tree is clean
-- [ ] 4.2 Run the leak check on the new `main` (the tree with both lists, the commit message with `private/leak-patterns.txt`, design D8); verify no match. On a match, stop, fix it, redo 4.1 and run the check again
-- [ ] 4.3 [User authorization: changes the GitHub repository settings] Set the description and topics of design D9 with `gh repo edit` and confirm issues are enabled; verify `gh repo view peeter123/ha-heatpump-efficiency --json description,repositoryTopics,hasIssuesEnabled` shows them
-- [ ] 4.4 [User authorization: pushes to GitHub] Add the remote `origin` (`https://github.com/peeter123/ha-heatpump-efficiency.git`) and push `main` with upstream; never push `backup/pre-release`; verify `git ls-remote origin` lists only `main` at the squash commit
-- [ ] 4.5 Watch the three jobs of the push; verify all pass with `gh run list` and `gh run view`. A failure is fixed in a new commit on `main`, checked by the leak check and pushed only with the owner's go, until all pass
-- [ ] 4.6 [User authorization: tags and releases] Tag `v0.1.0` on the green commit, push the tag, and create the release "Heat Pump Efficiency 0.1.0" with notes summarising the features from the README (design D9); verify `gh release view v0.1.0` shows it as the latest release on the tagged commit, and that the manifest version at that commit is `0.1.0`
+- [x] 4.1 [User authorization: rewrites the local history] Create `backup/pre-release` at `main`, then replace `main` with one root commit of the same tree (design D8), message "Heat Pump Efficiency 0.1.0" with a body summarising the integration; verify `git rev-list --count main` is 1, `git diff backup/pre-release main` is empty and the working tree is clean
+- [x] 4.2 Run the leak check on the new `main` (the tree with both lists, the commit message with `private/leak-patterns.txt`, design D8); verify no match. On a match, stop, fix it, redo 4.1 and run the check again
+- [x] 4.3 [User authorization: changes the GitHub repository settings] Set the description and topics of design D9 with `gh repo edit` and confirm issues are enabled; verify `gh repo view peeter123/ha-heatpump-efficiency --json description,repositoryTopics,hasIssuesEnabled` shows them
+- [x] 4.4 [User authorization: pushes to GitHub] Add the remote `origin` (`https://github.com/peeter123/ha-heatpump-efficiency.git`) and push `main` with upstream; never push `backup/pre-release`; verify `git ls-remote origin` lists only `main` at the squash commit
+- [x] 4.5 Watch the three jobs of the push; verify all pass with `gh run list` and `gh run view`. A failure is fixed in a new commit on `main`, checked by the leak check and pushed only with the owner's go, until all pass
+- [x] 4.6 [User authorization: tags and releases] Tag `v0.1.0` on the green commit, push the tag, and create the release "Heat Pump Efficiency 0.1.0" with notes summarising the features from the README (design D9); verify `gh release view v0.1.0` shows it as the latest release on the tagged commit, and that the manifest version at that commit is `0.1.0`
 
 ## Workflow follow-up
 
 - Archive the change after the final whole-change review; the archive commit is pushed only with the owner's go, after the leak check.
 - The live checks "Add as custom repository" and "Integrations list" of the packaging spec are done in the follow-up change that switches the live installation to the HACS-managed release.
 - Later follow-up: the pull request to the HACS default list.
-- Replace the Publishing entry in `private/BACKLOG.md` with those two follow-ups once the change is archived.
+- Later follow-up: the HACS action warns that the manifest has no `categories` (a warning, not a failure, on the 0.1.0 checks); add a fitting category in the next release, verified against hassfest's known categories at the pinned Core version.
+- Replace the Publishing entry in `private/BACKLOG.md` with those follow-ups once the change is archived.
