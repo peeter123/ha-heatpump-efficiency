@@ -9,6 +9,10 @@ It only reads statistics. It never imports, adjusts or clears statistics, never 
 integrations and never controls a heat pump. Cost is not part of the integration: it shows efficiency only and
 creates no cost entities.
 
+![The efficiency sensors per service (Cooling, Heating, Hot water and Overall) with their icons, on the integration's device page](docs/sensors.png)
+
+*The author's own installation (an Ecoforest ecoGEO heat pump), shown as an example. On another installation the device and sensor names follow the name you give the integration entry.*
+
 ## Status
 
 Version 0.2.0. The integration is installable through the Home Assistant Marketplace from its GitHub link (see Installation).

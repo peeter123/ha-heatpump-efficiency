@@ -19,6 +19,7 @@ Read it, and the active change in `openspec/changes/`, before any work.
   only on Linux or macOS; check that they compile with `python -m compileall tests_ha`). `pytest.ini` at the root
   sets their path and asyncio mode.
 - `LICENSE`: the MIT licence.
+- `docs/`: images used by `README.md`.
 - `.github/workflows/`: the `validate.yml` workflow (hassfest, HACS action, the standard-library tests and the Home
   Assistant tests).
 - `scripts/`: `brand.py`, the standard-library script that draws the brand images in
