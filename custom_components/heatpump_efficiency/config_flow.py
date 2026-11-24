@@ -46,6 +46,7 @@ from .validation import (
     Validation,
     expanded_sections,
     normalize_mapping,
+    shared_outputs,
     statistic_ids,
     suggested_values,
     unit_change_needs_warning,
@@ -158,6 +159,17 @@ class HeatPumpEfficiencyConfigFlow(ConfigFlow, domain=DOMAIN):
             name = str(user_input.get(FIELD_NAME, "")).strip()
             result = await _async_validate(self.hass, mapping, name)
             if not result.errors:
+                # config_entries.py ConfigFlow._async_current_entries() returns this domain's
+                # entries (the user source filters out ignored ones); an entry's mapping is its options.
+                shared = shared_outputs(
+                    mapping, [entry.options for entry in self._async_current_entries()]
+                )
+                if shared:
+                    # data_entry_flow.py FlowHandler.async_abort(*, reason, description_placeholders)
+                    return self.async_abort(
+                        reason="already_configured",
+                        description_placeholders={"statistics": ", ".join(shared)},
+                    )
                 # config_entries.py ConfigFlow.async_create_entry(title, data, options)
                 return self.async_create_entry(
                     title=name, data={FIELD_NAME: name}, options=mapping

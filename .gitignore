@@ -4,3 +4,4 @@ __pycache__/
 private/
 captures/
 .claude/settings.local.json
+.coverage

@@ -93,6 +93,14 @@ Home Assistant needs no YAML.
   defaults for the latitude once, when it is first loaded by a version that has them; its mapping does not
   change. The defaults are stored, so moving the home location later does not move the seasons.
 
+A second heat pump must use its own output statistics. When an output statistic you choose, in any section
+including Overall, is already an output statistic of another entry of the integration, the setup ends with the
+message "This heat pump is already configured: another entry of this integration already uses these output
+statistics:" followed by the shared statistics, and no entry is created. Output statistics shared between the
+sections of the same heat pump (for example Overall reusing the Heating output), and electrical or defrost
+statistics, do not count. The check runs only when a heat pump is added, not when you change an existing entry in
+Configure.
+
 ### Choosing statistics
 
 Choose statistics, not entities: the list shows every statistic the recorder knows, including external statistics
@@ -596,8 +604,11 @@ and they run in CI. To run them locally on Linux or macOS, with [uv](https://doc
 from the repository root
 
 ```sh
-uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 pytest --cov=custom_components.heatpump_efficiency --cov-report=term-missing
+uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 pytest --cov=custom_components.heatpump_efficiency --cov-branch --cov-report=term-missing
+uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 coverage report --include="*/config_flow.py" --fail-under=100
 ```
+
+The Home Assistant tests job fails unless `config_flow.py` has 100 % line and branch coverage.
 
 GitHub runs four jobs on every push and pull request: hassfest, the HACS action, the standard-library tests with
 the compile check, and the Home Assistant tests.

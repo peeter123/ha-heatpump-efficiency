@@ -403,6 +403,31 @@ def _measured_ids(mapping: Mapping[str, Any]) -> set[str]:
     }
 
 
+def _output_ids(mapping: Mapping[str, Any]) -> set[str]:
+    """Every output statistic ID of the mapping (all sections and Overall)."""
+    return {
+        statistic_id
+        for service in SERVICES
+        for statistic_id in _ids((mapping.get(service) or {}).get(FIELD_OUTPUT))
+    }
+
+
+def shared_outputs(
+    mapping: Mapping[str, Any], other_mappings: Iterable[Mapping[str, Any]]
+) -> list[str]:
+    """The sorted output statistic IDs of ``mapping`` that another mapping also uses as output.
+
+    Used by the setup to refuse a heat pump that an existing entry already measures
+    (design D3). Electrical and defrost heat statistics never count, and an output
+    shared between sections of the same mapping does not either: only the other
+    mappings (the stored options of the other entries) are compared.
+    """
+    others: set[str] = set()
+    for other in other_mappings:
+        others |= _output_ids(other)
+    return sorted(_output_ids(mapping) & others)
+
+
 def statistic_ids(mapping: Mapping[str, Any]) -> set[str]:
     """Return every output, electricity and defrost heat statistic ID of the mapping."""
     return _measured_ids(mapping) | {

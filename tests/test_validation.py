@@ -724,5 +724,48 @@ class CoolingUnitTest(unittest.TestCase):
         self.assertEqual(shown["cooling"]["unit"], "w_per_w")
 
 
+class SharedOutputsTest(unittest.TestCase):
+    A, B, C = "sensor.a_heat", "sensor.b_heat", "sensor.c_heat"
+
+    def test_output_used_by_another_entry(self):
+        other = form(heating={"output": [self.A], "electricity": [ELEC]})
+        mine = form(overall={"output": [self.B, self.A], "electricity": ["sensor.mine_elec"]})
+        self.assertEqual(val.shared_outputs(mine, [other]), [self.A])
+
+    def test_different_outputs(self):
+        other = form(heating={"output": [self.A], "electricity": [ELEC]})
+        mine = form(heating={"output": [self.B], "electricity": [ELEC]})
+        self.assertEqual(val.shared_outputs(mine, [other]), [])
+
+    def test_overall_reusing_its_own_heating_output(self):
+        other = form(heating={"output": [self.A], "electricity": [ELEC]})
+        mine = form(
+            heating={"output": [self.B], "electricity": ["sensor.x_elec"]},
+            overall={"output": [self.B], "electricity": ["sensor.y_elec"]},
+        )
+        self.assertEqual(val.shared_outputs(mine, [other]), [])
+
+    def test_only_electricity_and_defrost_shared(self):
+        other = form(heating={"output": [self.A], "electricity": [ELEC], "defrost_heat": [self.C]})
+        mine = form(heating={"output": [self.B], "electricity": [ELEC], "defrost_heat": [self.C]})
+        self.assertEqual(val.shared_outputs(mine, [other]), [])
+
+    def test_no_other_entry(self):
+        mine = form(heating={"output": [self.A], "electricity": [ELEC]})
+        self.assertEqual(val.shared_outputs(mine, []), [])
+
+    def test_sorted_unique_across_sections_and_entries(self):
+        first = form(cooling={"output": [self.C], "electricity": [ELEC]})
+        second = form(hot_water={"output": [self.A], "electricity": [ELEC]})
+        mine = form(
+            heating={"output": [self.C, self.A], "electricity": [ELEC]},
+            overall={"output": [self.A, self.C], "electricity": [ELEC]},
+        )
+        self.assertEqual(val.shared_outputs(mine, [first, second]), [self.A, self.C])
+
+    def test_ignores_sections_without_a_mapping(self):
+        self.assertEqual(val.shared_outputs({}, [{}, {"seasons": {}}]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

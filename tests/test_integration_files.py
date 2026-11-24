@@ -184,6 +184,14 @@ class TranslationsTest(unittest.TestCase):
         self.assertIn("async_step_unit_change", source)
         self.assertIn('step_id="unit_change"', source)
 
+    def test_already_configured_abort_names_the_shared_statistics(self):
+        text = self.translations["config"]["abort"]["already_configured"]
+        self.assertIn("{statistics}", text)
+        self.assertEqual(set(re.findall(r"{(\w+)}", text)), {"statistics"})
+        source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
+        self.assertIn('reason="already_configured"', source)
+        self.assertIn('{"statistics":', source)
+
     def test_every_error_has_text_and_known_placeholders(self):
         known = set(val.PLACEHOLDERS.values())
         for flow in ("config", "options"):
@@ -261,6 +269,18 @@ class WorkflowTest(unittest.TestCase):
         self.assertRegex(section, r"--with\s+pytest-homeassistant-custom-component==\d+\.\d+\.\d+\b")
         self.assertRegex(section, r"version:\s*\"?\d+\.\d+\.\d+\"?\s")  # an exact uv version
         self.assertIn("pytest --cov=custom_components.heatpump_efficiency", section)
+
+    def test_home_assistant_tests_job_gates_config_flow_coverage_at_100_percent(self):
+        text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+        section = re.split(r"^  [a-z][\w-]*:$", text.split("\n  ha-tests:\n", 1)[1], maxsplit=1, flags=re.M)[0]
+        self.assertIn("--cov-branch", section)  # every branch counts, not only every line
+        self.assertIn('coverage report --include="*/config_flow.py" --fail-under=100', section)
+        # The gate runs after the pytest step, in the same uv environment: same Python and same pins.
+        commands = [" ".join(step.split()) for step in re.split(r"^      - ", section, flags=re.M) if "uv run" in step]
+        self.assertEqual(len(commands), 2)
+        self.assertLess(section.index("pytest --cov"), section.index("coverage report"))
+        pins = {tuple(re.findall(r"--python \S+|--with \S+", command)) for command in commands}
+        self.assertEqual(len(pins), 1, commands)
 
     def test_standard_library_tests_import_only_the_standard_library_and_the_repository(self):
         siblings = {path.stem for path in (ROOT / "tests").glob("*.py")}

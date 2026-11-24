@@ -100,6 +100,9 @@
         }
       }
     },
+    "abort": {
+      "already_configured": "This heat pump is already configured: another entry of this integration already uses these output statistics: {statistics}. Each heat pump needs its own output statistics."
+    },
     "error": {
       "name_required": "Enter a name for this heat pump.",
       "nothing_mapped": "Choose the output and electrical energy statistics of at least one service or Overall.",
