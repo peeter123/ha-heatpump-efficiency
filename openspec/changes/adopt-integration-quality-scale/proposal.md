@@ -29,8 +29,9 @@ that needs Home Assistant, which the project's standard-library-only tooling rul
   `docs-removal-instructions`, `docs-use-cases`, `docs-supported-devices`, `docs-known-limitations`), and the new
   development workflow.
 - Project rules (`openspec/config.yaml` and `AGENTS.md`): the Home Assistant test package is allowed in CI through
-  uv at pinned versions; a change that has CI-only tests is built on a work branch that is pushed after each
-  group's commit, with the user's go each time.
+  uv at pinned versions; a change that touches `custom_components/` or `tests_ha/` is built on a work branch that
+  is pushed after each group's commit, with the user's go each time; a red group gets one fix commit, which is
+  amended and force-pushed on the work branch if CI is red again.
 - Last group: once a `pytest-homeassistant-custom-component` release for Home Assistant 2026.11.x exists, the pin
   moves to it, setup and unload tests are added, and the declared tier rises to Silver or Gold as the coverage and
   the record allow.

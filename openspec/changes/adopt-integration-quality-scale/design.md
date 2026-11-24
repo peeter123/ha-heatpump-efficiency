@@ -135,16 +135,23 @@ installation after the release.
 `openspec/config.yaml` and `AGENTS.md` change:
 
 - Tooling: the standard library stays the rule for the integration, scripts and `tests/`; `tests_ha/` may use
-  `pytest-homeassistant-custom-component` at a pinned version, run through uv, in CI. The pin moves only to a
-  release that pins the target Home Assistant version or the newest one before it.
-- Validation per group: the standard-library tests and `compileall` locally; for a change with `tests_ha/` work,
-  also the CI run of the group's commit on the change's work branch.
+  `pytest-homeassistant-custom-component` at a pinned version, run through uv (in CI, and locally only on Linux or
+  macOS). The pin moves only to a release that pins the target Home Assistant version or the newest one before it.
+  uv itself is pinned to an exact version in the workflow (`astral-sh/setup-uv` `version` input), like the action
+  tag.
+- Sources of truth: a new tag `ha-test-harness`, `pytest-homeassistant-custom-component` at the pinned version
+  (file and fixture); `tests_ha/` cites it where a test depends on fixture behaviour, such as fixture order.
+- Validation per group: the standard-library tests and `compileall` locally, after which the group's tasks are
+  checked off; for a change on a work branch, the CI run of the group's commit confirms it.
 - Specs rule: a scenario is checkable by a standard-library test offline, by the Home Assistant tests in CI, or by
   a named live check.
-- Loop: work branch `change/<change-id>`. Per group: local validation, commit, leak check, push the branch with the
-  user's go, wait for CI. A red run gets one commit "Fix group <n> of <change-id>: ...", the only allowed second
-  commit of a group; the next group starts on green. When the change is done, `main` is fast-forwarded to the
-  branch, pushed with the user's go, and the remote branch is deleted.
+- Loop: every change that touches `custom_components/` or `tests_ha/` is built on the work branch
+  `change/<change-id>` (user decision 2026-11-24), so `main` only gets commits CI has run. Per group: local
+  validation, commit, leak check, push the branch with the user's go, wait for CI. A red run gets one commit
+  "Fix group <n> of <change-id>: ...", the only allowed second commit of a group; if CI is red again, that fix
+  commit is amended and the work branch force-pushed with the user's go (user decision 2026-11-24; this applies
+  only to the work branch, never to `main`). The next group starts on green. When the change is done, `main` is
+  fast-forwarded to the branch, pushed with the user's go, and the remote branch is deleted.
 
 ### D7. Last group: the 2026.11 test package
 

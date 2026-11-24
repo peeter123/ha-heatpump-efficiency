@@ -84,11 +84,11 @@ integration's modules, and the CI job SHALL fail below that.
 - **WHEN** the record marks `test-coverage` as `done`
 - **THEN** the workflow's Home Assistant tests job fails when total coverage of the integration is 95 % or less
 
-### Requirement: Work branch for changes with CI-only tests
-A change that adds or changes Home Assistant tests SHALL be built on a work branch named `change/<change-id>`.
-After each task group's commit, and after the leak check, the branch SHALL be pushed with the owner's go, and the
-next group SHALL start only when CI passes. When the change is complete, `main` SHALL be fast-forwarded to the
-branch and the remote branch deleted.
+### Requirement: Work branch for changes to the integration or its tests
+A change that touches `custom_components/` or `tests_ha/` SHALL be built on a work branch named
+`change/<change-id>`. After each task group's commit and the leak check, the branch SHALL be pushed with the owner's
+go, and the next group SHALL start only when CI passes. History SHALL be rewritten only for a group's fix commit on
+the work branch, never on `main`.
 
 #### Scenario: Group passes (live check)
 - **WHEN** a group's commit is pushed to the work branch and every CI job passes
@@ -99,10 +99,15 @@ branch and the remote branch deleted.
 - **THEN** one commit with the subject "Fix group <n> of <change-id>: ..." fixes it, is pushed the same way, and the
   next group starts only on green
 
+#### Scenario: Fix commit fails in CI (live check)
+- **WHEN** a CI job fails on a group's fix commit
+- **THEN** the fix commit is amended, the work branch is force-pushed with the owner's go, and the group still has
+  exactly one fix commit
+
 #### Scenario: Change complete (live check)
 - **WHEN** the last group passes CI
 - **THEN** `main` is fast-forwarded to the work branch, keeping every group commit, pushed with the owner's go, and
-  the remote work branch is deleted
+  the remote work branch is deleted with the owner's go
 
 ## MODIFIED Requirements
 

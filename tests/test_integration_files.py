@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import re
@@ -246,6 +247,35 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn('python-version: "3.14"', text)
         self.assertIn("python -m unittest discover tests", text)
         self.assertIn("python -m compileall custom_components", text)
+
+    def test_workflow_has_four_jobs_and_a_pinned_home_assistant_tests_job(self):
+        text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+        jobs = text.split("\njobs:\n", 1)[1]
+        self.assertEqual(len(re.findall(r"^  [a-z][\w-]*:$", jobs, re.M)), 4)
+        section = re.split(r"^  [a-z][\w-]*:$", jobs.split("\n  ha-tests:\n", 1)[1], maxsplit=1, flags=re.M)[0]
+        self.assertIn("name: Home Assistant tests", section)
+        self.assertIn("astral-sh/setup-uv@v", section)
+        self.assertRegex(section, r"astral-sh/setup-uv@v\d+\.\d+\.\d+\s")  # an exact release tag
+        self.assertIn("uv run --no-project", section)
+        self.assertRegex(section, r"--python\s+3\.14\b")
+        self.assertRegex(section, r"--with\s+pytest-homeassistant-custom-component==\d+\.\d+\.\d+\b")
+        self.assertRegex(section, r"version:\s*\"?\d+\.\d+\.\d+\"?\s")  # an exact uv version
+        self.assertIn("pytest --cov=custom_components.heatpump_efficiency", section)
+
+    def test_standard_library_tests_import_only_the_standard_library_and_the_repository(self):
+        siblings = {path.stem for path in (ROOT / "tests").glob("*.py")}
+        allowed = set(sys.stdlib_module_names) | siblings | {"custom_components"}
+        for path in (ROOT / "tests").glob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.Import):
+                    roots = [alias.name.split(".")[0] for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                    roots = [node.module.split(".")[0]]
+                else:
+                    continue
+                for root in roots:
+                    self.assertIn(root, allowed, (path.name, root))
+                    self.assertNotEqual(root, "tests_ha", path.name)
 
 
 class ReadmeTest(unittest.TestCase):

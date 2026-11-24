@@ -1,18 +1,25 @@
 # Tasks
 
 This change is built on the work branch `change/adopt-integration-quality-scale` (design D6, `packaging` "Work
-branch for changes with CI-only tests"). The branch is created from `main` before the first planning-artifact
-commit. After each group's commit and the leak check, the branch is pushed with the owner's go, and the next group
-starts only when every CI job passes; a red run gets one commit "Fix group <n> of adopt-integration-quality-scale:
-...". Local validation per group: `python -m unittest discover tests` and `python -m compileall custom_components`.
-The Home Assistant tests (`tests_ha/`) run only in CI.
+branch for changes to the integration or its tests"). The branch is created from `main` before the first
+planning-artifact commit. After each group's commit and the leak check, the branch is pushed with the owner's go,
+and the next group starts only when every CI job passes; a red run gets one commit "Fix group <n> of
+adopt-integration-quality-scale: ...", and if that is red too, the fix commit is amended and the branch
+force-pushed with the owner's go. Local validation per group: `python -m unittest discover tests` and
+`python -m compileall custom_components`; tasks are checked off after it passes. The Home Assistant tests
+(`tests_ha/`) run in CI (on Windows they cannot run).
+
+Decisions of 2026-11-24 (group 1 review): the work-branch loop covers every change that touches
+`custom_components/` or `tests_ha/`; uv is pinned to an exact version in the workflow; `openspec/config.yaml` gets
+the source tag `ha-test-harness`; a red fix commit is amended and force-pushed on the work branch only;
+`pytest.ini` also sets `asyncio_default_fixture_loop_scope = function`, as the test package does.
 
 ## 1. Project rules, test harness and CI job
 
-- [ ] 1.1 Amend `openspec/config.yaml` as in design D6: the tooling paragraph allows `pytest-homeassistant-custom-component` for `tests_ha/` only, at an exact version run through uv in CI, with the pin rule (the target Home Assistant version or the newest before it); the validation and commit paragraphs describe the work branch, the push with the owner's go after each group's commit and leak check, the next group only on green, the one "Fix group <n> of <change-id>: ..." commit for a red run, and the fast-forward of `main` at the end; the specs rule names the Home Assistant tests in CI as a third way to check a scenario; update `AGENTS.md`'s Layout (`tests_ha/`, `pytest.ini`) and Rules in short to match; verify `openspec validate adopt-integration-quality-scale --strict` passes and both validation commands pass
-- [ ] 1.2 Add a root `pytest.ini` (`testpaths = tests_ha`, `asyncio_mode = auto`) and `tests_ha/conftest.py` that enables custom integrations through the `enable_custom_integrations` fixture (design D4), and `tests_ha/test_smoke.py` with one test that starts the config flow's user step with the `recorder_mock` fixture and gets the form; verify `python -m unittest discover tests` runs the same number of tests as before and imports nothing from `tests_ha/`
-- [ ] 1.3 Add the `ha-tests` job to `.github/workflows/validate.yml` (design D4): checkout, `astral-sh/setup-uv` at a pinned tag, and `uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 pytest --cov=custom_components.heatpump_efficiency --cov-report=term-missing`; extend the workflow test in `tests/test_integration_files.py` to find this job, Python 3.14 and an exact `==` pin; verify the unittest run passes
-- [ ] 1.4 Update README.md's Development section: the two test sets (standard-library tests run anywhere; the Home Assistant tests need Linux or macOS and run in CI, with the `uv run` command for running them locally there), and that GitHub runs four jobs; verify the documented `unittest` and `compileall` commands run as written
+- [x] 1.1 Amend `openspec/config.yaml` as in design D6: the tooling paragraph allows `pytest-homeassistant-custom-component` for `tests_ha/` only, at an exact version run through uv in CI, with the pin rule (the target Home Assistant version or the newest before it); the validation and commit paragraphs describe the work branch, the push with the owner's go after each group's commit and leak check, the next group only on green, the one "Fix group <n> of <change-id>: ..." commit for a red run, and the fast-forward of `main` at the end; the specs rule names the Home Assistant tests in CI as a third way to check a scenario; update `AGENTS.md`'s Layout (`tests_ha/`, `pytest.ini`) and Rules in short to match; verify `openspec validate adopt-integration-quality-scale --strict` passes and both validation commands pass
+- [x] 1.2 Add a root `pytest.ini` (`testpaths = tests_ha`, `asyncio_mode = auto`) and `tests_ha/conftest.py` that enables custom integrations through the `enable_custom_integrations` fixture (design D4), and `tests_ha/test_smoke.py` with one test that starts the config flow's user step with the `recorder_mock` fixture and gets the form; verify `python -m unittest discover tests` runs the same number of tests as before and imports nothing from `tests_ha/`
+- [x] 1.3 Add the `ha-tests` job to `.github/workflows/validate.yml` (design D4): checkout, `astral-sh/setup-uv` at a pinned tag, and `uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 pytest --cov=custom_components.heatpump_efficiency --cov-report=term-missing`; extend the workflow test in `tests/test_integration_files.py` to find this job, Python 3.14 and an exact `==` pin; verify the unittest run passes
+- [x] 1.4 Update README.md's Development section: the two test sets (standard-library tests run anywhere; the Home Assistant tests need Linux or macOS and run in CI, with the `uv run` command for running them locally there), and that GitHub runs four jobs; verify the documented `unittest` and `compileall` commands run as written
 
 ## 2. Duplicate check and config flow tests
 
