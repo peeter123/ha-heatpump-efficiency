@@ -57,6 +57,7 @@ with group 6 at Bronze.
 - [ ] 6.2 [User authorization: tag and release] Tag `v0.2.0` on that commit and publish a GitHub release with notes (categories, quality scale record, duplicate check, icons, documentation, tests); verify `gh release view v0.2.0` and that the Marketplace offers 0.2.0
 - [ ] 6.3 [User authorization: updates the live installation and restarts Home Assistant; offer a backup first] Update to 0.2.0 through the Marketplace and restart; verify the entry loads, the 19 sensors keep their entity IDs and states, each shows its service's icon (`period-efficiency` live check), and there are no log entries for the integration
 - [ ] 6.4 [User authorization: starts a config flow on the live installation] Start adding the integration with the live Heating output statistic; verify the flow ends with the already-configured message naming it and no entry is created; record 6.3 and 6.4 in `private/installation.md`
+- [ ] 6.5 [User authorization: takes a screenshot of the live installation; pushes `main`] After 6.3, take a light-mode screenshot of the integration's sensors with their icons (the device page, or a dashboard view of the sensors), and check that it shows no installation-specific identifiers (entity IDs, hostnames, other devices; crop or blur them otherwise); save it as `docs/sensors.png` and show it near the top of README.md, with alt text, and add `docs/` to `AGENTS.md`'s Layout; verify the image renders on the repository page after the push and the leak check passes
 
 ## Workflow follow-up
 

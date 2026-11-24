@@ -26,8 +26,9 @@ that needs Home Assistant, which the project's standard-library-only tooling rul
   another entry (rule `unique-config-entry`).
 - Entity icons through an `icons.json` per translation key (rule `icon-translations`).
 - README: removal instructions, use cases, supported devices and known limitations (rules
-  `docs-removal-instructions`, `docs-use-cases`, `docs-supported-devices`, `docs-known-limitations`), and the new
-  development workflow.
+  `docs-removal-instructions`, `docs-use-cases`, `docs-supported-devices`, `docs-known-limitations`), the new
+  development workflow, and a screenshot of the sensors with their icons, taken on the live installation after the
+  release (user request 2026-11-24).
 - Project rules (`openspec/config.yaml` and `AGENTS.md`): the Home Assistant test package is allowed in CI through
   uv at pinned versions; a change that touches `custom_components/` or `tests_ha/` is built on a work branch that
   is pushed after each group's commit, with the user's go each time; a red group gets one fix commit, which is
@@ -60,7 +61,8 @@ None.
   `homeassistant==2026.10.4`, PyPI), run through uv on Python 3.14.
 - Live installation: no step until the release. Then a Marketplace update to the new version and a restart, with
   the user's go-ahead and an offered backup; the existing entry keeps its entities (no option, entity ID or unique
-  ID changes), and the icons appear on its sensors.
+  ID changes), and the icons appear on its sensors. A read-only screenshot of those sensors for the README, with
+  the user's go-ahead.
 - Existing tools checked: hassfest and the HACS action (kept; they do not check a custom integration's quality
   record), Core's own test harness at tag 2026.11.2 (not used: a full Core checkout in CI for a handful of tests),
   local runs on Windows (not possible: Home Assistant's test plugin imports `fcntl`, which exists only on Unix).
