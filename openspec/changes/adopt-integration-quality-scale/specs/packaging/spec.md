@@ -101,7 +101,43 @@ the work branch, never on `main`.
 - **THEN** `main` is fast-forwarded to the work branch, keeping every group commit, pushed with the owner's go, and
   the remote work branch is deleted with the owner's go
 
+## RENAMED Requirements
+
+- FROM: `### Requirement: Installable as a HACS custom repository`
+- TO: `### Requirement: Installable through the Marketplace`
+
 ## MODIFIED Requirements
+
+### Requirement: Installable through the Marketplace
+The repository SHALL be installable through Home Assistant's built-in Marketplace from its GitHub link as an
+integration: a root `hacs.json` (which the Marketplace reads) with the display name "Heat Pump Efficiency" and a
+minimum Home Assistant version, and the integration in `custom_components/heatpump_efficiency/` with a manifest whose
+`documentation` and `issue_tracker` URLs point to the public GitHub repository and whose `codeowners` names the
+owner's GitHub handle.
+
+#### Scenario: Manifest has no placeholders
+- **WHEN** the test suite reads `manifest.json`
+- **THEN** `documentation` is `https://github.com/peeter123/ha-heatpump-efficiency`, `issue_tracker` is that URL
+  followed by `/issues`, `codeowners` is `["@peeter123"]`, and no manifest value contains the text `PLACEHOLDER`
+
+#### Scenario: Add as custom repository (live check)
+- **WHEN** an owner opens Settings, Marketplace, chooses Add from link with the repository URL, installs it and
+  restarts Home Assistant
+- **THEN** "Heat Pump Efficiency" can be added from Settings, Devices and services
+
+### Requirement: Releases
+Each version SHALL be published as a GitHub release, not only a tag, whose tag is `v` followed by the manifest
+`version`, created only after the checks of that commit pass.
+
+#### Scenario: First release (live check)
+- **WHEN** version 0.1.0 is released
+- **THEN** the tag `v0.1.0` points at a commit whose manifest version is `0.1.0` and whose checks passed, and it is
+  offered as the latest version
+
+#### Scenario: A later release (live check)
+- **WHEN** a later version is released
+- **THEN** the tag `v` plus that version points at a commit whose manifest version is that version and whose checks
+  passed, and the Marketplace offers it as the latest version
 
 ### Requirement: Automated checks
 GitHub Actions SHALL run hassfest, the HACS action for category integration, the repository's validation

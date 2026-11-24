@@ -48,15 +48,25 @@ the source tag `ha-test-harness`; a red fix commit is amended and force-pushed o
 Moved to a follow-up change (design D7). On 2026-11-24, after group 4, the newest
 `pytest-homeassistant-custom-component` release on PyPI was 0.13.375, which pins `homeassistant==2026.10.4`; no
 release pins 2026.11.x. The follow-up moves the pin, adds the setup, unload, coordinator, sensor and diagnostics
-tests and the 95 % total coverage gate, and closes `test-coverage`. The change continues with group 6 at Bronze.
+tests and the 95 % total coverage gate, and closes `test-coverage`. The change continues with groups 6 and 7 at Bronze.
 
-## 6. Release and live update
+## 6. Whole-change review fixes
 
-- [ ] 6.1 [User authorization: pushes `main`] Fast-forward `main` to the work branch, run the leak check, push `main`, and delete the remote work branch; verify all CI jobs pass on `main` and the HACS job log has no categories warning
-- [ ] 6.2 [User authorization: tag and release] Tag `v0.2.0` on that commit and publish a GitHub release with notes (categories, quality scale record, duplicate check, icons, documentation, tests); verify `gh release view v0.2.0` and that the Marketplace offers 0.2.0
-- [ ] 6.3 [User authorization: updates the live installation and restarts Home Assistant; offer a backup first] Update to 0.2.0 through the Marketplace and restart; verify the entry loads, the 19 sensors keep their entity IDs and states, each shows its service's icon (`period-efficiency` live check), and there are no log entries for the integration
-- [ ] 6.4 [User authorization: starts a config flow on the live installation] Start adding the integration with the live Heating output statistic; verify the flow ends with the already-configured message naming it and no entry is created; record 6.3 and 6.4 in `private/installation.md`
-- [ ] 6.5 [User authorization: takes a screenshot of the live installation; pushes `main`] After 6.3, take a light-mode screenshot of the integration's sensors with their icons (the device page, or a dashboard view of the sensors), and check that it shows no installation-specific identifiers (entity IDs, hostnames, other devices; crop or blur them otherwise); save it as `docs/sensors.png` and show it near the top of README.md, with alt text, and add `docs/` to `AGENTS.md`'s Layout; verify the image renders on the repository page after the push and the leak check passes
+Decisions of 2026-11-24 from the whole-change review: the packaging delta renames "Installable as a HACS custom
+repository" to "Installable through the Marketplace" and updates "Releases"; commits after the fast-forward of
+`main` that touch neither `custom_components/` nor `tests_ha/` go to `main` directly (design D6).
+
+- [ ] 6.1 Fix the stale UI text: `translations/en.json` `options.step.unit_change.description` names the statistics tools as in the README (Settings, Tools, Statistics), and `config.step.user.data_description.name` says a second heat pump needs its own output statistics; verify the translation tests and that the README and the UI text agree
+- [ ] 6.2 Project rules: in `openspec/config.yaml`, the product paragraph says the integration is installed through the Marketplace, the validation paragraph also runs `python -m compileall tests_ha`, and the work-branch paragraph states the design D6 exception for commits after the fast-forward; `AGENTS.md` matches (the validation commands, the exception, and the Windows `tzdata` note in Rules in short); `.gitignore` ignores `.pytest_cache/`; verify `openspec validate adopt-integration-quality-scale --strict`
+- [ ] 6.3 Record and its test: the `test-coverage` comment in `quality_scale.yaml` names everything the follow-up adds (the 2026.11 test package, setup, unload, coordinator, sensor and diagnostics tests, and the 95 % gate); `tests_ha/test_quality_scale.py` gets a negative check that a bare `exempt`, and a `todo` or `exempt` without a comment, fail the value check; verify `compileall` locally and the job in CI
+
+## 7. Release and live update
+
+- [ ] 7.1 [User authorization: pushes `main`] Fast-forward `main` to the work branch, run the leak check, push `main`, and delete the remote work branch; verify all CI jobs pass on `main` and the HACS job log has no categories warning
+- [ ] 7.2 [User authorization: tag and release] Tag `v0.2.0` on that commit and publish a GitHub release with notes (categories, quality scale record, duplicate check, icons, documentation, tests); verify `gh release view v0.2.0` and that the Marketplace offers 0.2.0
+- [ ] 7.3 [User authorization: updates the live installation and restarts Home Assistant; offer a backup first] Update to 0.2.0 through the Marketplace and restart; verify the entry loads, the 19 sensors keep their entity IDs and states, each shows its service's icon (`period-efficiency` live check), and there are no log entries for the integration
+- [ ] 7.4 [User authorization: starts a config flow on the live installation] Start adding the integration with the live Heating output statistic; verify the flow ends with the already-configured message naming it and no entry is created; record 7.3 and 7.4 in `private/installation.md`
+- [ ] 7.5 [User authorization: takes a screenshot of the live installation; pushes `main`] After 7.3, take a light-mode screenshot of the integration's sensors with their icons (the device page, or a dashboard view of the sensors), and check that it shows no installation-specific identifiers (entity IDs, hostnames, other devices; crop or blur them otherwise); save it as `docs/sensors.png` and show it near the top of README.md, with alt text, and add `docs/` to `AGENTS.md`'s Layout; verify the image renders on the repository page after the push and the leak check passes
 
 ## Workflow follow-up
 

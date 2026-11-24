@@ -122,7 +122,7 @@ check.
   of the 2026.10.4 setup return rule; the quality scale record (D2).
 - CI: a new `ha-tests` job in `.github/workflows/validate.yml` installs uv (`astral-sh/setup-uv`, pinned tag) and
   runs `uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 pytest
-  --cov=custom_components.heatpump_efficiency --cov-report=term-missing`, then fails unless `config_flow.py` is at
+  --cov=custom_components.heatpump_efficiency --cov-branch --cov-report=term-missing`, then fails unless `config_flow.py` is at
   100 % (`coverage report --include="*/config_flow.py" --fail-under=100`).
 - Alternatives: Core's own test harness at tag 2026.11.2 (exact version, but a full Core checkout and its
   requirements per run); waiting for a 2026.11.x package before any test (blocks the change for an unknown time).
@@ -161,7 +161,9 @@ installation after the release.
   "Fix group <n> of <change-id>: ...", the only allowed second commit of a group; if CI is red again, that fix
   commit is amended and the work branch force-pushed with the user's go (user decision 2026-11-24; this applies
   only to the work branch, never to `main`). The next group starts on green. When the change is done, `main` is
-  fast-forwarded to the branch, pushed with the user's go, and the remote branch is deleted.
+  fast-forwarded to the branch, pushed with the user's go, and the remote branch is deleted. Commits after that
+  fast-forward that touch neither `custom_components/` nor `tests_ha/` (live-step records, docs, the archive) go to
+  `main` directly, after the leak check and with the user's go (user decision 2026-11-24, whole-change review).
 
 ### D7. Last group: the 2026.11 test package
 
@@ -193,7 +195,7 @@ with the 95 % total coverage gate, moved to a follow-up change.
 Groups (refined in tasks.md): 1. project rules, `pytest.ini`, `tests_ha/` scaffold and the CI job, with one smoke
 test, to prove the loop; 2. the duplicate check and the config and options flow tests; 3. icons and the README
 additions; 4. manifest categories and quality scale, `quality_scale.yaml` and its test, and version 0.2.0 (last, so
-the declared tier is backed from its first commit); 5. the 2026.11 test package (D7); 6. release and the live
+the declared tier is backed from its first commit); 5. the 2026.11 test package (D7); 6. fixes from the whole-change review; 7. release and the live
 update, with the user's go and an offered backup. Rollback: the Marketplace reinstalls
 0.1.0; no stored option changes.
 
