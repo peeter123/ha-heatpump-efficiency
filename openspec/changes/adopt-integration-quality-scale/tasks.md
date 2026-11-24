@@ -45,13 +45,10 @@ the source tag `ha-test-harness`; a red fix commit is amended and force-pushed o
 
 ## 5. Home Assistant 2026.11 test package
 
-Blocked until `pytest-homeassistant-custom-component` publishes a release that pins `homeassistant==2026.11.x`
-(design D7). If none exists when group 4 is done, this group moves to a follow-up change and the change continues
-with group 6 at Bronze.
-
-- [ ] 5.1 Move the pin in the `ha-tests` job to the release that pins the target Home Assistant version or the newest 2026.11.x before it, checked on PyPI; update the workflow test; verify the unittest run passes and the CI job passes
-- [ ] 5.2 Add tests of `async_setup_entry` and `async_unload_entry`, the coordinator's update and its logging, the sensor platform and the diagnostics, with synthetic statistics; verify in CI that total coverage of the integration is above 95 %
-- [ ] 5.3 Add the total coverage gate (`--fail-under=95` over the integration) for the `packaging` requirement "Overall coverage for silver"; mark `test-coverage` as `done` in the record; set the manifest `quality_scale` to the highest tier the record supports (the record test decides); update the README's Status section to that tier; verify the record test and the workflow test pass
+Moved to a follow-up change (design D7). On 2026-11-24, after group 4, the newest
+`pytest-homeassistant-custom-component` release on PyPI was 0.13.375, which pins `homeassistant==2026.10.4`; no
+release pins 2026.11.x. The follow-up moves the pin, adds the setup, unload, coordinator, sensor and diagnostics
+tests and the 95 % total coverage gate, and closes `test-coverage`. The change continues with group 6 at Bronze.
 
 ## 6. Release and live update
 

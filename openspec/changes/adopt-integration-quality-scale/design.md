@@ -172,6 +172,8 @@ The declared tier is whatever the record supports (the record test decides): it 
 `entity-unavailable` is `todo` (decision of 2026-11-24 in D2), and rises only after the follow-up change for that
 rule. If no such release exists
 when the other groups are done, this group moves to a follow-up change and the change archives with Bronze.
+Outcome (2026-11-24): no such release existed after group 4 (newest 0.13.375, pinning 2026.10.4), so the group,
+with the 95 % total coverage gate, moved to a follow-up change.
 
 ## Risks / Trade-offs
 

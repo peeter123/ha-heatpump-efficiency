@@ -76,14 +76,6 @@ that coverage is below 100 %.
 - **WHEN** the Home Assistant tests job runs on a pushed commit of this change
 - **THEN** its coverage report shows 100 % for `config_flow.py` and the job passes
 
-### Requirement: Overall coverage for silver
-When the record marks `test-coverage` as `done`, the Home Assistant tests SHALL cover more than 95 % of the
-integration's modules, and the CI job SHALL fail below that.
-
-#### Scenario: Silver coverage gate
-- **WHEN** the record marks `test-coverage` as `done`
-- **THEN** the workflow's Home Assistant tests job fails when total coverage of the integration is 95 % or less
-
 ### Requirement: Work branch for changes to the integration or its tests
 A change that touches `custom_components/` or `tests_ha/` SHALL be built on a work branch named
 `change/<change-id>`. After each task group's commit and the leak check, the branch SHALL be pushed with the owner's

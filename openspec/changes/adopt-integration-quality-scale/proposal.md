@@ -34,9 +34,9 @@ that needs Home Assistant, which the project's standard-library-only tooling rul
   uv at pinned versions; a change that touches `custom_components/` or `tests_ha/` is built on a work branch that
   is pushed after each group's commit, with the user's go each time; a red group gets one fix commit, which is
   amended and force-pushed on the work branch if CI is red again.
-- Last group: once a `pytest-homeassistant-custom-component` release for Home Assistant 2026.11.x exists, the pin
-  moves to it, setup and unload tests are added, and `test-coverage` is closed; the declared tier stays Bronze
-  until the follow-up change for `entity-unavailable` (see Out of scope).
+- Not in this change after all: the move to a `pytest-homeassistant-custom-component` release for Home Assistant
+  2026.11.x, with setup and unload tests and the 95 % total coverage gate; no such release existed on 2026-11-24,
+  so it is a follow-up change (see Out of scope). The declared tier stays Bronze.
 
 ## Capabilities
 
@@ -72,6 +72,8 @@ None.
 
 - The pull request to the HACS default list (hacs/default): after this change is released.
 - `strict-typing` (Platinum): mypy in strict mode; a follow-up if wanted.
+- `test-coverage` (Silver): the 2026.11 test package, setup, unload, coordinator, sensor and diagnostics tests, and
+  a 95 % total coverage gate; a follow-up change once a package release pins Home Assistant 2026.11.x.
 - `entity-unavailable` (Silver): sensors that become unavailable when the read they depend on fails; a follow-up
   change, which Silver waits for (decision of 2026-11-24).
 - Duplicate checks in the options flow: the rule covers setup; the options flow keeps today's checks.
