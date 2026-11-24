@@ -139,18 +139,33 @@ def test_every_rule_listed(rules):
     assert set(rules) == set(RULE_TIER)
 
 
+def check_value(name, value):
+    """Assert that one rule value has the shape of the record.
+
+    Same shape as ha-core 2026.11.2 script/hassfest/quality_scale.py SCHEMA, plus the packaging spec: exempt and
+    todo always carry a comment.
+    """
+    if isinstance(value, str):
+        assert value in ("done", "todo", "exempt"), f"{name}: bare value {value!r}"
+        assert value == "done", f"{name}: a {value} needs a comment with the reason"
+        return
+    assert isinstance(value, dict), f"{name}: expected a string or a mapping"
+    assert set(value) == {"status", "comment"}, f"{name}: keys {sorted(value)}"
+    assert value["status"] in ("done", "todo", "exempt"), f"{name}: status {value['status']!r}"
+    assert isinstance(value["comment"], str) and value["comment"].strip(), f"{name}: empty comment"
+
+
 def test_values_valid(rules):
-    # Same shape as ha-core 2026.11.2 script/hassfest/quality_scale.py SCHEMA, plus the
-    # packaging spec: exempt and todo always carry a comment.
     for name, value in rules.items():
-        if isinstance(value, str):
-            assert value in ("done", "todo"), f"{name}: bare value {value!r}"
-            assert value != "todo", f"{name}: a todo needs a comment with the reason"
-            continue
-        assert isinstance(value, dict), f"{name}: expected a string or a mapping"
-        assert set(value) == {"status", "comment"}, f"{name}: keys {sorted(value)}"
-        assert value["status"] in ("done", "todo", "exempt"), f"{name}: status {value['status']!r}"
-        assert isinstance(value["comment"], str) and value["comment"].strip(), f"{name}: empty comment"
+        check_value(name, value)
+
+
+def test_value_check_rejects_missing_reasons():
+    check_value("ok", "done")
+    check_value("ok", {"status": "exempt", "comment": "A reason."})
+    for bad in ("exempt", "todo", {"status": "todo"}, {"status": "exempt", "comment": ""}):
+        with pytest.raises(AssertionError):
+            check_value("bad", bad)
 
 
 def test_exempt_and_todo_have_comments(rules):

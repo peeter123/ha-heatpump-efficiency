@@ -204,7 +204,7 @@ class TranslationsTest(unittest.TestCase):
     def test_unit_change_step_is_translated_and_explains_the_warning(self):
         step = self.translations["options"]["step"]["unit_change"]
         self.assertTrue(step["title"])
-        for phrase in ("cannot convert", "repair", "statistics developer tools", "never changes"):
+        for phrase in ("cannot convert", "repair", "Settings, Tools, Statistics", "never changes"):
             self.assertIn(phrase, step["description"])
         self.assertNotIn("data", step)  # a form without fields
         self.assertIn("{sensors}", step["description"])  # names the affected sensors

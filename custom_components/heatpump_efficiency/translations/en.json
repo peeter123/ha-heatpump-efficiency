@@ -96,7 +96,7 @@
           "name": "Name"
         },
         "data_description": {
-          "name": "The name of this heat pump. You can add the integration again for a second heat pump."
+          "name": "The name of this heat pump. You can add the integration again for a second heat pump, which needs its own output statistics."
         }
       }
     },
@@ -214,7 +214,7 @@
       },
       "unit_change": {
         "title": "Change the Cooling efficiency unit",
-        "description": "Home Assistant cannot convert the existing long-term statistics of the Cooling sensors to the new unit. Sensors with statistics: {sensors}. After you save, it reports the unit change as a repair, and offers its fix in the statistics developer tools. Until you fix the statistics there, or change the unit back, Home Assistant stops compiling new long-term statistics for the affected Cooling sensors. This integration never changes statistics. The daily, monthly and season figures follow the new unit straight away. Choose Submit to save the change; close this dialog to keep the current unit."
+        "description": "Home Assistant cannot convert the existing long-term statistics of the Cooling sensors to the new unit. Sensors with statistics: {sensors}. After you save, it reports the unit change as a repair, and offers its fix in the statistics tools (Settings, Tools, Statistics). Until you fix the statistics there, or change the unit back, Home Assistant stops compiling new long-term statistics for the affected Cooling sensors. This integration never changes statistics. The daily, monthly and season figures follow the new unit straight away. Choose Submit to save the change; close this dialog to keep the current unit."
       }
     },
     "error": {

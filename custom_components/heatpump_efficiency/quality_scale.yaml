@@ -58,7 +58,10 @@ rules:
     comment: The integration uses no credentials.
   test-coverage:
     status: todo
-    comment: The tests cover the config flow completely; the setup, unload, coordinator and sensor platform tests are planned.
+    comment: >-
+      The tests cover the config flow completely. A follow-up change moves to a test package release for Home
+      Assistant 2026.11, adds the setup, unload, coordinator, sensor and diagnostics tests and a 95 % total coverage
+      gate.
 
   # Gold
   devices: done

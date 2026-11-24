@@ -8,7 +8,7 @@ context: |
   statistics in a setup UI (config flow and options flow). Developed against one live installation (an Ecoforest
   ecoGEO bridged by the author's own ESPHome firmware (not public), which provides per-service
   electrical counters, Total Metered Energy and a backfill of their history), but meant to be published on GitHub
-  and installed through HACS by others.
+  and installed through Home Assistant's built-in Marketplace by others.
 
   This folder is its own git repo; its files never reference paths outside it. Nothing installation-specific
   (entity IDs of the author's devices, hostnames, IPs, dashboard ids, tokens) may ship in code, tests,
@@ -56,7 +56,8 @@ context: |
   macOS (its runner does not load on Windows). uv itself is pinned to an exact version in the workflow. The
   package pin is the release that pins the target Home Assistant version, or the newest release that pins an
   earlier one; it moves only to such a release.
-  Validation: python -m unittest discover tests and python -m compileall custom_components; check exit codes.
+  Validation: python -m unittest discover tests, python -m compileall custom_components and python -m compileall
+  tests_ha; check exit codes.
   Tasks are checked off after these pass; for a change on a work branch, the CI run of the group's commit
   confirms the group, and a red run is repaired by the fix commit without unchecking tasks.
   Generated files (the OpenSpec skills that openspec update writes) are never edited by hand.
@@ -89,7 +90,8 @@ context: |
   too, it is amended and the work branch force-pushed with the owner's go; this is the only history rewrite
   allowed, only on the work branch, never on main. When the change is complete, main is fast-forwarded to the
   work branch, keeping every group commit, pushed with the owner's go, and the remote work branch is deleted with
-  the owner's go.
+  the owner's go. Commits after that fast-forward that touch neither custom_components/ nor tests_ha/ (tasks.md
+  check-offs, docs and the archive) go to main directly, after the leak check; each push has the owner's go.
 
 rules:
   proposal:
@@ -121,5 +123,5 @@ operations:
       - Before each group, commit uncommitted changes to the change's planning artifacts first, as described in context.
       - Check off completed tasks in tasks.md only after the local validation commands pass. On a work branch the
         CI run confirms the group; a red run is repaired by the fix commit, without unchecking tasks.
-      - Commit each group as described in context; push only the work branch, with the owner's go, as described
-        in context.
+      - Commit each group as described in context; push only as described there (the work branch, the
+        fast-forward of main, and the commits after it), each push with the owner's go.

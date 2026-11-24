@@ -56,9 +56,9 @@ Decisions of 2026-11-24 from the whole-change review: the packaging delta rename
 repository" to "Installable through the Marketplace" and updates "Releases"; commits after the fast-forward of
 `main` that touch neither `custom_components/` nor `tests_ha/` go to `main` directly (design D6).
 
-- [ ] 6.1 Fix the stale UI text: `translations/en.json` `options.step.unit_change.description` names the statistics tools as in the README (Settings, Tools, Statistics), and `config.step.user.data_description.name` says a second heat pump needs its own output statistics; verify the translation tests and that the README and the UI text agree
-- [ ] 6.2 Project rules: in `openspec/config.yaml`, the product paragraph says the integration is installed through the Marketplace, the validation paragraph also runs `python -m compileall tests_ha`, and the work-branch paragraph states the design D6 exception for commits after the fast-forward; `AGENTS.md` matches (the validation commands, the exception, and the Windows `tzdata` note in Rules in short); `.gitignore` ignores `.pytest_cache/`; verify `openspec validate adopt-integration-quality-scale --strict`
-- [ ] 6.3 Record and its test: the `test-coverage` comment in `quality_scale.yaml` names everything the follow-up adds (the 2026.11 test package, setup, unload, coordinator, sensor and diagnostics tests, and the 95 % gate); `tests_ha/test_quality_scale.py` gets a negative check that a bare `exempt`, and a `todo` or `exempt` without a comment, fail the value check; verify `compileall` locally and the job in CI
+- [x] 6.1 Fix the stale UI text: `translations/en.json` `options.step.unit_change.description` names the statistics tools as in the README (Settings, Tools, Statistics), and `config.step.user.data_description.name` says a second heat pump needs its own output statistics; verify the translation tests and that the README and the UI text agree
+- [x] 6.2 Project rules: in `openspec/config.yaml`, the product paragraph says the integration is installed through the Marketplace, the validation paragraph also runs `python -m compileall tests_ha`, and the work-branch paragraph states the design D6 exception for commits after the fast-forward; `AGENTS.md` matches (the validation commands, the exception, and the Windows `tzdata` note in Rules in short); `.gitignore` ignores `.pytest_cache/`; verify `openspec validate adopt-integration-quality-scale --strict`
+- [x] 6.3 Record and its test: the `test-coverage` comment in `quality_scale.yaml` names everything the follow-up adds (the 2026.11 test package, setup, unload, coordinator, sensor and diagnostics tests, and the 95 % gate); `tests_ha/test_quality_scale.py` gets a negative check that a bare `exempt`, and a `todo` or `exempt` without a comment, fail the value check; verify `compileall` locally and the job in CI
 
 ## 7. Release and live update
 
@@ -69,5 +69,8 @@ repository" to "Installable through the Marketplace" and updates "Releases"; com
 - [ ] 7.5 [User authorization: takes a screenshot of the live installation; pushes `main`] After 7.3, take a light-mode screenshot of the integration's sensors with their icons (the device page, or a dashboard view of the sensors), and check that it shows no installation-specific identifiers (entity IDs, hostnames, other devices; crop or blur them otherwise); save it as `docs/sensors.png` and show it near the top of README.md, with alt text, and add `docs/` to `AGENTS.md`'s Layout; verify the image renders on the repository page after the push and the leak check passes
 
 ## Workflow follow-up
+
+- At archive, edit the Purpose of `openspec/specs/packaging/spec.md` by hand to say the integration installs through
+  Home Assistant's built-in Marketplace (a delta cannot change a Purpose).
 
 - Whole-change review, then sync the delta specs and archive the change.

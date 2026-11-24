@@ -47,7 +47,8 @@ None.
 ### Modified Capabilities
 
 - `packaging`: manifest categories and quality scale, the `quality_scale.yaml` record and its check, the CI test
-  job with its pinned test package, and the work-branch loop.
+  job with its pinned test package, the work-branch loop, installing through the built-in Marketplace (the HACS
+  custom repository requirement renamed and rewritten), and releases offered there.
 - `efficiency-setup`: the config flow refuses an output statistic that another entry already uses as an output.
 - `period-efficiency`: every sensor has an icon from `icons.json` (season sensors included, through the same
   translation keys mechanism).

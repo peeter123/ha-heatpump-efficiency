@@ -162,8 +162,8 @@ installation after the release.
   commit is amended and the work branch force-pushed with the user's go (user decision 2026-11-24; this applies
   only to the work branch, never to `main`). The next group starts on green. When the change is done, `main` is
   fast-forwarded to the branch, pushed with the user's go, and the remote branch is deleted. Commits after that
-  fast-forward that touch neither `custom_components/` nor `tests_ha/` (live-step records, docs, the archive) go to
-  `main` directly, after the leak check and with the user's go (user decision 2026-11-24, whole-change review).
+  fast-forward that touch neither `custom_components/` nor `tests_ha/` (tasks.md check-offs, docs, the archive) go
+  to `main` directly, after the leak check; each push has the user's go (user decision 2026-11-24, whole-change review).
 
 ### D7. Last group: the 2026.11 test package
 
