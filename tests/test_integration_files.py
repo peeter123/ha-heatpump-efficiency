@@ -60,7 +60,7 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(self.manifest["documentation"], "https://github.com/peeter123/ha-heatpump-efficiency")
         self.assertEqual(self.manifest["issue_tracker"], "https://github.com/peeter123/ha-heatpump-efficiency/issues")
         self.assertEqual(self.manifest["codeowners"], ["@peeter123"])
-        self.assertEqual(self.manifest["version"], "0.1.0")
+        self.assertEqual(self.manifest["version"], "0.2.0")
 
         def strings(value):
             if isinstance(value, str):
@@ -74,6 +74,33 @@ class ManifestTest(unittest.TestCase):
 
         for text in strings(self.manifest):
             self.assertNotIn("PLACEHOLDER", text)
+
+    def test_categories(self):
+        # ha-core 2026.11.2 script/hassfest/manifest.py validate_categories: a parent
+        # category listed with its own subcategory is an error.
+        categories = self.manifest["categories"]
+        self.assertEqual(
+            categories, ["climate.heat_pumps_air_conditioning", "energy.meters_monitoring"]
+        )
+        for category in categories:
+            parent, _, subcategory = category.partition(".")
+            if subcategory:
+                self.assertNotIn(parent, categories)
+        self.assertEqual(len(set(categories)), len(categories))
+        self.assertNotIn("connectivity", self.manifest)
+
+    def test_readme_status_matches_manifest(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(f"Version {self.manifest['version']}.", readme)
+        self.assertIn(f"declares the {self.manifest['quality_scale'].capitalize()} tier", readme)
+        self.assertIn("custom_components/heatpump_efficiency/quality_scale.yaml", readme)
+
+    def test_keys_sorted(self):
+        # ha-core 2026.11.2 script/hassfest/manifest.py sort_manifest: domain, name,
+        # then alphabetical order.
+        keys = list(self.manifest)
+        self.assertEqual(keys[:2], ["domain", "name"])
+        self.assertEqual(keys[2:], sorted(keys[2:]))
 
     def test_domain_matches_const(self):
         self.assertIn(

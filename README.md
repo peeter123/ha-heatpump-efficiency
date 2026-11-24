@@ -11,7 +11,9 @@ creates no cost entities.
 
 ## Status
 
-Version 0.1.0. The integration is installable through the Home Assistant Marketplace from its GitHub link (see Installation).
+Version 0.2.0. The integration is installable through the Home Assistant Marketplace from its GitHub link (see Installation).
+
+It declares the Bronze tier of Home Assistant's Integration Quality Scale. The record of every rule, with the reason for each exemption and open item, is in [quality_scale.yaml](custom_components/heatpump_efficiency/quality_scale.yaml).
 
 ## Use cases
 
@@ -419,6 +421,27 @@ content: |
 The `defrost_partial` mark appears only on points of a service with a defrost statistic mapped (see the season
 point fields above); the other points have no such key, which the card's `default(false)` handles (the markdown card renders
 templates in strict mode, where an undefined key is an error).
+
+### Example automation
+
+This automation sends a persistent notification when the month-to-date Heating efficiency falls below 3. The entity
+ID is an example: find the real one under Settings, Devices & services, by opening the heat pump entry and its
+device. A `numeric_state` trigger does not fire while the sensor is unknown or unavailable, so an unknown period
+sends nothing.
+
+```yaml
+alias: Heat pump efficiency is low
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.heat_pump_heating_month_to_date
+    below: 3
+actions:
+  - action: persistent_notification.create
+    data:
+      title: Heat pump efficiency
+      message: >-
+        The month-to-date Heating efficiency is {{ states('sensor.heat_pump_heating_month_to_date') | float | round(2) }}.
+```
 
 
 ## Removing the integration

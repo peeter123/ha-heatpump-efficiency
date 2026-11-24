@@ -25,8 +25,9 @@ that needs Home Assistant, which the project's standard-library-only tooling rul
 - The config flow aborts when one of the new entry's output statistics is already the output of a service in
   another entry (rule `unique-config-entry`).
 - Entity icons through an `icons.json` per translation key (rule `icon-translations`).
-- README: removal instructions, use cases, supported devices and known limitations (rules
-  `docs-removal-instructions`, `docs-use-cases`, `docs-supported-devices`, `docs-known-limitations`), the new
+- README: removal instructions, use cases, supported devices, known limitations and an automation example (rules
+  `docs-removal-instructions`, `docs-use-cases`, `docs-supported-devices`, `docs-known-limitations`,
+  `docs-examples`), installing and removing through the built-in Marketplace, the new
   development workflow, and a screenshot of the sensors with their icons, taken on the live installation after the
   release (user request 2026-11-24).
 - Project rules (`openspec/config.yaml` and `AGENTS.md`): the Home Assistant test package is allowed in CI through
@@ -34,8 +35,8 @@ that needs Home Assistant, which the project's standard-library-only tooling rul
   is pushed after each group's commit, with the user's go each time; a red group gets one fix commit, which is
   amended and force-pushed on the work branch if CI is red again.
 - Last group: once a `pytest-homeassistant-custom-component` release for Home Assistant 2026.11.x exists, the pin
-  moves to it, setup and unload tests are added, and the declared tier rises to Silver or Gold as the coverage and
-  the record allow.
+  moves to it, setup and unload tests are added, and `test-coverage` is closed; the declared tier stays Bronze
+  until the follow-up change for `entity-unavailable` (see Out of scope).
 
 ## Capabilities
 
@@ -71,4 +72,6 @@ None.
 
 - The pull request to the HACS default list (hacs/default): after this change is released.
 - `strict-typing` (Platinum): mypy in strict mode; a follow-up if wanted.
+- `entity-unavailable` (Silver): sensors that become unavailable when the read they depend on fails; a follow-up
+  change, which Silver waits for (decision of 2026-11-24).
 - Duplicate checks in the options flow: the rule covers setup; the options flow keeps today's checks.

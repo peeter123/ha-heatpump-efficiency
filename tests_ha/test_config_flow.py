@@ -134,6 +134,33 @@ async def _submit_user(hass, user_input):
     return await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
 
 
+async def _recover_user(hass, result):
+    """Fix the cause: submit a valid form on the same flow and return the created entry's result.
+
+    developers.home-assistant.io rules/config-flow-test-coverage.md (updated 2026-10-09): after each error the
+    test fixes the cause and finishes the flow, to show the user can recover.
+    """
+    assert result["type"] is FlowResultType.FORM
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": NAME, "heating": HEATING})
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == NAME
+    assert result["data"] == {"name": NAME}
+    assert result["options"] == {"heating": HEATING}
+    (entry,) = hass.config_entries.async_entries(DOMAIN)
+    assert dict(entry.options) == {"heating": HEATING}
+
+
+async def _recover_options(hass, entry, result):
+    """Fix the cause: submit a valid mapping on the same options flow and check the saved options."""
+    assert result["type"] is FlowResultType.FORM
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"heating": HEATING})
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {"heating": HEATING}
+    assert dict(entry.options) == {"heating": HEATING}
+
+
 async def _submit_options(hass, entry, user_input):
     result = await hass.config_entries.options.async_init(entry.entry_id)
     return await hass.config_entries.options.async_configure(result["flow_id"], user_input)
@@ -246,6 +273,9 @@ async def test_user_step_shows_each_validation_error(hass, statistics, setup_ent
     assert hass.config_entries.async_entries(DOMAIN) == []
     setup_entry.assert_not_called()
 
+    await _recover_user(hass, result)
+    setup_entry.assert_called_once()
+
 
 async def test_user_step_requires_a_name(hass, statistics):
     """A blank name is an error on the name field."""
@@ -253,6 +283,8 @@ async def test_user_step_requires_a_name(hass, statistics):
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"name": "name_required"}
+
+    await _recover_user(hass, result)
 
 
 async def test_user_step_names_the_missing_statistic(hass, statistics):
@@ -263,6 +295,8 @@ async def test_user_step_names_the_missing_statistic(hass, statistics):
 
     assert result["errors"] == {"heating": "statistic_missing"}
     assert result["description_placeholders"]["missing"] == f"heating: {MISSING}"
+
+    await _recover_user(hass, result)
 
 
 async def test_user_step_adds_a_second_heat_pump_with_its_own_outputs(hass, statistics):
@@ -381,6 +415,8 @@ async def test_options_flow_shows_each_validation_error(hass, statistics, sectio
     assert result["errors"] == errors
     assert dict(entry.options) == {"heating": HEATING}
 
+    await _recover_options(hass, entry, result)
+
 
 async def test_options_flow_names_the_missing_statistic(hass, statistics):
     """The error text gets the failing statistic, labelled with its section."""
@@ -391,6 +427,8 @@ async def test_options_flow_names_the_missing_statistic(hass, statistics):
     )
 
     assert result["description_placeholders"]["missing"] == f"heating: {MISSING}"
+
+    await _recover_options(hass, entry, result)
 
 
 async def test_options_flow_does_not_check_for_duplicates(hass, statistics):

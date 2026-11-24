@@ -1,6 +1,7 @@
 {
   "domain": "heatpump_efficiency",
   "name": "Heat Pump Efficiency",
+  "categories": ["climate.heat_pumps_air_conditioning", "energy.meters_monitoring"],
   "codeowners": ["@peeter123"],
   "config_flow": true,
   "dependencies": ["recorder"],
@@ -8,5 +9,6 @@
   "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/peeter123/ha-heatpump-efficiency/issues",
-  "version": "0.1.0"
+  "quality_scale": "bronze",
+  "version": "0.2.0"
 }

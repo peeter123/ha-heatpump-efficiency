@@ -36,8 +36,8 @@ Facts this design rests on:
 **Goals:**
 
 - A Bronze claim that the repository's own checks back, rule by rule.
-- Every Silver and Gold rule that does not need setup and unload tests closed or exempt with a reason, so the
-  last group only has to add coverage.
+- Every Silver and Gold rule that does not need setup and unload tests closed or exempt with a reason, except
+  `entity-unavailable`, which a follow-up change closes (decision of 2026-11-24 in D2).
 - No behaviour change for the existing entry beyond icons.
 
 **Non-Goals:**
@@ -77,10 +77,17 @@ Status per rule after this change, except the last group (`*` = closed by this c
 
 | Tier | done | exempt (reason) | todo |
 |---|---|---|---|
-| Bronze | appropriate-polling, brands, common-modules, config-flow, config-flow-test-coverage*, dependency-transparency, docs-high-level-description, docs-installation-instructions, docs-removal-instructions*, entity-event-setup, entity-unique-id, has-entity-name, runtime-data, test-before-configure, test-before-setup, unique-config-entry* | action-setup, docs-actions, docs-conditions, docs-triggers (no actions, conditions or triggers) | |
-| Silver | config-entry-unloading, docs-configuration-parameters, docs-installation-parameters, integration-owner, log-when-unavailable, parallel-updates | action-exceptions (no actions); entity-unavailable (the only source is the local recorder, a declared dependency; a failed read makes the affected periods unknown and raises a repair issue); reauthentication-flow (no credentials) | test-coverage (last group) |
-| Gold | devices, diagnostics, docs-data-update, docs-examples, docs-known-limitations*, docs-supported-devices*, docs-supported-functions, docs-troubleshooting, docs-use-cases*, entity-category, entity-disabled-by-default, entity-translations, icon-translations*, repair-issues | discovery, discovery-update-info (nothing to discover); dynamic-devices, stale-devices (one service device per entry, removed with it); entity-device-class (no device class for an efficiency ratio); exception-translations (the integration raises no exceptions of its own); reconfiguration-flow (the entry data holds only the name; everything else changes in the options flow, which reloads the entry) | |
+| Bronze | appropriate-polling, brands, common-modules, config-flow, config-flow-test-coverage*, dependency-transparency, docs-high-level-description, docs-installation-instructions, docs-removal-instructions*, entity-event-setup, entity-unique-id, has-entity-name, runtime-data, test-before-configure, unique-config-entry* | action-setup, docs-actions, docs-conditions, docs-triggers (no actions, conditions or triggers); test-before-setup (a pure local calculation from the recorder, the rule's own exception; nothing remote to test before setup) | |
+| Silver | config-entry-unloading, docs-configuration-parameters, docs-installation-parameters, integration-owner, log-when-unavailable, parallel-updates | action-exceptions (no actions); reauthentication-flow (no credentials) | entity-unavailable (a failed read logs a warning once and makes the affected periods unknown, but the sensors stay available; a follow-up change makes them unavailable); test-coverage (last group) |
+| Gold | devices, diagnostics, docs-data-update, docs-examples*, docs-known-limitations*, docs-supported-devices*, docs-supported-functions, docs-troubleshooting, docs-use-cases*, entity-category, entity-disabled-by-default, entity-translations, icon-translations*, repair-issues | discovery, discovery-update-info (nothing to discover); dynamic-devices, stale-devices (one service device per entry, removed with it); entity-device-class (no device class for an efficiency ratio); exception-translations (the integration raises no exceptions of its own); reconfiguration-flow (the entry data holds only the name; everything else changes in the options flow, which reloads the entry) | |
 | Platinum | | async-dependency, inject-websession (no library, no HTTP) | strict-typing |
+
+Decisions of 2026-11-24 (group 4 review, against the rule pages on developers.home-assistant.io):
+`config-flow-test-coverage` requires that each error test fixes the cause and finishes the flow, so the tests in
+`tests_ha/test_config_flow.py` resubmit valid input on the same flow after every error; `docs-examples` means
+automation examples, so the README gets one; `test-before-setup` is exempt under the rule's own "pure local
+calculation" exception; `entity-unavailable` is `todo` with the correct reason (a failed read raises no repair
+issue), so Silver also waits for the follow-up change that makes sensors unavailable on a failed read.
 
 `entity-category`: every sensor is a primary figure, so none gets a category (done, with that comment).
 `entity-disabled-by-default`: sensors exist only for mapped services and every period is a primary figure, so all
@@ -160,8 +167,10 @@ installation after the release.
 
 Blocked until `pytest-homeassistant-custom-component` publishes a release that pins `homeassistant==2026.11.x`.
 Then the pin moves to it, tests of `async_setup_entry`, `async_unload_entry`, the coordinator and the sensor
-platform are added, the CI job reports total coverage, and the declared tier becomes `silver` when coverage is above
-95 % (rule `test-coverage`) and `gold` when every Gold rule is `done` or `exempt` as well. If no such release exists
+platform are added, the CI job reports total coverage, and `test-coverage` becomes `done` when coverage is above 95 %.
+The declared tier is whatever the record supports (the record test decides): it stays `bronze` while
+`entity-unavailable` is `todo` (decision of 2026-11-24 in D2), and rises only after the follow-up change for that
+rule. If no such release exists
 when the other groups are done, this group moves to a follow-up change and the change archives with Bronze.
 
 ## Risks / Trade-offs

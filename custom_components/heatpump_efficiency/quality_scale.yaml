@@ -1,0 +1,115 @@
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: The integration has no actions.
+  appropriate-polling: done
+  brands: done
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage: done
+  dependency-transparency: done
+  docs-actions:
+    status: exempt
+    comment: The integration has no actions.
+  docs-conditions:
+    status: exempt
+    comment: The integration has no conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: The integration has no triggers.
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup:
+    status: exempt
+    comment: >-
+      The integration is a pure local calculation from the recorder, which the rule names as an exception; there is
+      no remote device or service to test before setup.
+  unique-config-entry:
+    status: done
+    comment: >-
+      The user step of the config flow aborts with already_configured when another entry already uses one of the
+      submitted output statistics (shared_outputs in validation.py). hassfest's own validator only recognizes
+      _abort_if_unique_id_configured and _async_abort_entries_match and does not run for custom integrations.
+
+  # Silver
+  action-exceptions:
+    status: exempt
+    comment: The integration has no actions.
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: todo
+    comment: >-
+      A failed statistics read logs a warning once and makes the affected periods unknown, but the sensors stay
+      available and no repair issue is raised. A follow-up change makes them unavailable.
+  integration-owner: done
+  log-when-unavailable: done
+  parallel-updates: done
+  reauthentication-flow:
+    status: exempt
+    comment: The integration uses no credentials.
+  test-coverage:
+    status: todo
+    comment: The tests cover the config flow completely; the setup, unload, coordinator and sensor platform tests are planned.
+
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery:
+    status: exempt
+    comment: There is nothing to discover; the owner maps statistics in the setup form.
+  discovery-update-info:
+    status: exempt
+    comment: There is nothing to discover, so there is no discovery information to update.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: Each entry has exactly one service device, which is removed with the entry.
+  entity-category:
+    status: done
+    comment: Every sensor is a primary figure, so none gets an entity category.
+  entity-device-class:
+    status: exempt
+    comment: Home Assistant has no device class for an efficiency ratio.
+  entity-disabled-by-default:
+    status: done
+    comment: >-
+      Sensors exist only for the services the owner maps and every period is a primary figure, so all stay enabled.
+  entity-translations: done
+  exception-translations:
+    status: exempt
+    comment: The integration raises no exceptions of its own that reach the user.
+  icon-translations: done
+  reconfiguration-flow:
+    status: exempt
+    comment: >-
+      The entry data holds only the name; everything else changes in the options flow, which reloads the entry.
+  repair-issues: done
+  stale-devices:
+    status: exempt
+    comment: Each entry has exactly one service device, which is removed with the entry.
+
+  # Platinum
+  async-dependency:
+    status: exempt
+    comment: The integration uses no library; it reads the recorder through Home Assistant's own async API.
+  inject-websession:
+    status: exempt
+    comment: The integration makes no HTTP requests.
+  strict-typing:
+    status: todo
+    comment: The code is not yet checked against Home Assistant's strict mypy settings.
