@@ -1,0 +1,56 @@
+# Tasks
+
+This change is built on the work branch `change/adopt-integration-quality-scale` (design D6, `packaging` "Work
+branch for changes with CI-only tests"). The branch is created from `main` before the first planning-artifact
+commit. After each group's commit and the leak check, the branch is pushed with the owner's go, and the next group
+starts only when every CI job passes; a red run gets one commit "Fix group <n> of adopt-integration-quality-scale:
+...". Local validation per group: `python -m unittest discover tests` and `python -m compileall custom_components`.
+The Home Assistant tests (`tests_ha/`) run only in CI.
+
+## 1. Project rules, test harness and CI job
+
+- [ ] 1.1 Amend `openspec/config.yaml` as in design D6: the tooling paragraph allows `pytest-homeassistant-custom-component` for `tests_ha/` only, at an exact version run through uv in CI, with the pin rule (the target Home Assistant version or the newest before it); the validation and commit paragraphs describe the work branch, the push with the owner's go after each group's commit and leak check, the next group only on green, the one "Fix group <n> of <change-id>: ..." commit for a red run, and the fast-forward of `main` at the end; the specs rule names the Home Assistant tests in CI as a third way to check a scenario; update `AGENTS.md`'s Layout (`tests_ha/`, `pytest.ini`) and Rules in short to match; verify `openspec validate adopt-integration-quality-scale --strict` passes and both validation commands pass
+- [ ] 1.2 Add a root `pytest.ini` (`testpaths = tests_ha`, `asyncio_mode = auto`) and `tests_ha/conftest.py` that enables custom integrations through the `enable_custom_integrations` fixture (design D4), and `tests_ha/test_smoke.py` with one test that starts the config flow's user step with the `recorder_mock` fixture and gets the form; verify `python -m unittest discover tests` runs the same number of tests as before and imports nothing from `tests_ha/`
+- [ ] 1.3 Add the `ha-tests` job to `.github/workflows/validate.yml` (design D4): checkout, `astral-sh/setup-uv` at a pinned tag, and `uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 pytest --cov=custom_components.heatpump_efficiency --cov-report=term-missing`; extend the workflow test in `tests/test_integration_files.py` to find this job, Python 3.14 and an exact `==` pin; verify the unittest run passes
+- [ ] 1.4 Update README.md's Development section: the two test sets (standard-library tests run anywhere; the Home Assistant tests need Linux or macOS and run in CI, with the `uv run` command for running them locally there), and that GitHub runs four jobs; verify the documented `unittest` and `compileall` commands run as written
+
+## 2. Duplicate check and config flow tests
+
+- [ ] 2.1 Add `shared_outputs(mapping, other_mappings)` to `validation.py` (design D3): the sorted output statistic IDs of `mapping`, across all sections and Overall, that are an output statistic in any of the other mappings; add tests in `tests/test_validation.py` for the `efficiency-setup` scenarios (output used by another entry, different outputs, Overall reusing its own Heating output, only electricity shared, no other entry); verify the unittest run passes
+- [ ] 2.2 Call it in the config flow's user step after validation, with the options of the other entries from `_async_current_entries`, and abort with reason `already_configured` and a placeholder naming the shared statistics (design D3); add the English text under `config.abort.already_configured` in `translations/en.json`; verify the translation tests in `tests/test_integration_files.py` still pass and `compileall` passes
+- [ ] 2.3 Add `tests_ha/test_config_flow.py`: synthetic statistics in the test recorder (made-up IDs, energy unit, running sum), `async_setup_entry` patched to return `True` where an entry is created; cover every line and branch of `config_flow.py`: the user step (created entry, each validation error, the name error, the duplicate abort), the options flow (saved options, each error, the Cooling unit-change step and its confirmation); verify locally that the file compiles and, in CI, that the job passes
+- [ ] 2.4 Add the coverage gate to the `ha-tests` job: `coverage report --include="*/config_flow.py" --fail-under=100` after the pytest run (design D4); extend the workflow test to find it; verify the unittest run passes
+- [ ] 2.5 Update README.md's Setup section: a second heat pump must use its own output statistics, and adding one whose output statistic another entry already uses ends with an already-configured message that names it; verify the text matches the abort message in `translations/en.json`
+
+## 3. Icons and documentation
+
+- [ ] 3.1 Add `custom_components/heatpump_efficiency/icons.json` (design D5) with `entity.sensor.<translation key>.default` for all 19 sensor translation keys: Heating `mdi:heat-pump`, Hot water `mdi:water-boiler`, Cooling `mdi:snowflake`, Overall `mdi:heat-pump-outline` (the open question of design D5: names may change in review); check each name by hand against the Material Design Icons list; add a test in `tests/test_integration_files.py` for the `period-efficiency` scenario "An icon for every translation key"; verify the unittest run passes
+- [ ] 3.2 Update README.md for the Gold and Bronze documentation rules (design D2): a "Removing the integration" section (delete the entry from Devices and services, then remove the repository from HACS; statistics of its sensors stay in the recorder until purged), and use cases, supported heat pumps (any with energy statistics in kWh), and known limitations (5-minute delay, external statistics hourly, no cost figures, figures only as good as the mapped counters) in the matching sections, and the sensor icons in the Sensors section; verify each new section exists and the README describes no behaviour the code does not have
+
+## 4. Categories and the quality scale record
+
+- [ ] 4.1 Add `categories` (design D1) and `"quality_scale": "bronze"` to `manifest.json` in sorted key order; extend `ManifestTest` in `tests/test_integration_files.py` for the `packaging` scenario "Categories in the manifest" (values and order, no parent with its own subcategory, no `connectivity`, keys after `domain` and `name` sorted); verify the unittest run passes
+- [ ] 4.2 Add `custom_components/heatpump_efficiency/quality_scale.yaml` with all 54 rules of hassfest's `ALL_RULES` at 2026.11.2 and the statuses and reasons of design D2's table (every `exempt` and `todo` with a comment; `test-coverage` and `strict-typing` `todo`); verify by reading that every Bronze rule is `done` or `exempt`
+- [ ] 4.3 Add `tests_ha/test_quality_scale.py` (design D2): the rule names and tiers copied from `script/hassfest/quality_scale.py` `ALL_RULES` at 2026.11.2, cited in the file; load the record with `homeassistant.util.yaml.load_yaml_dict`; check the `packaging` scenarios of "Quality scale record" and "Declared tier backed by the record" (every rule listed, valid values, comments on `exempt` and `todo`, the declared tier is the highest one the record supports, a failing rule named in the message); verify in CI that it passes
+- [ ] 4.4 Set the manifest `version` to `0.2.0`, and update README.md's Status section (version 0.2.0, the declared Bronze tier with a link to `quality_scale.yaml`); verify the README's version matches the manifest and the unittest run passes
+
+## 5. Home Assistant 2026.11 test package
+
+Blocked until `pytest-homeassistant-custom-component` publishes a release that pins `homeassistant==2026.11.x`
+(design D7). If none exists when group 4 is done, this group moves to a follow-up change and the change continues
+with group 6 at Bronze.
+
+- [ ] 5.1 Move the pin in the `ha-tests` job to the release that pins the target Home Assistant version or the newest 2026.11.x before it, checked on PyPI; update the workflow test; verify the unittest run passes and the CI job passes
+- [ ] 5.2 Add tests of `async_setup_entry` and `async_unload_entry`, the coordinator's update and its logging, the sensor platform and the diagnostics, with synthetic statistics; verify in CI that total coverage of the integration is above 95 %
+- [ ] 5.3 Add the total coverage gate (`--fail-under=95` over the integration) for the `packaging` requirement "Overall coverage for silver"; mark `test-coverage` as `done` in the record; set the manifest `quality_scale` to the highest tier the record supports (the record test decides); update the README's Status section to that tier; verify the record test and the workflow test pass
+
+## 6. Release and live update
+
+- [ ] 6.1 [User authorization: pushes `main`] Fast-forward `main` to the work branch, run the leak check, push `main`, and delete the remote work branch; verify all CI jobs pass on `main` and the HACS job log has no categories warning
+- [ ] 6.2 [User authorization: tag and release] Tag `v0.2.0` on that commit and publish a GitHub release with notes (categories, quality scale record, duplicate check, icons, documentation, tests); verify `gh release view v0.2.0` and that the Marketplace offers 0.2.0
+- [ ] 6.3 [User authorization: updates the live installation and restarts Home Assistant; offer a backup first] Update to 0.2.0 through the Marketplace and restart; verify the entry loads, the 19 sensors keep their entity IDs and states, each shows its service's icon (`period-efficiency` live check), and there are no log entries for the integration
+- [ ] 6.4 [User authorization: starts a config flow on the live installation] Start adding the integration with the live Heating output statistic; verify the flow ends with the already-configured message naming it and no entry is created; record 6.3 and 6.4 in `private/installation.md`
+
+## Workflow follow-up
+
+- Whole-change review, then sync the delta specs and archive the change.
