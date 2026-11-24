@@ -124,7 +124,10 @@ check.
 
 `custom_components/heatpump_efficiency/icons.json` gives `entity.sensor.<translation_key>.default` for every sensor
 translation key from `sensor_model.translation_key` (periods and seasons), one icon per service: Heating
-`mdi:heat-pump`, Hot water `mdi:water-boiler`, Cooling `mdi:snowflake`, Overall `mdi:heat-pump-outline`. A
+`mdi:radiator`, Hot water `mdi:water-boiler`, Cooling `mdi:snowflake`, Overall `mdi:heat-pump` (user decision
+2026-11-24, replacing `mdi:heat-pump` for Heating and `mdi:heat-pump-outline` for Overall, which differ only in fill
+and are hard to tell apart in the entity list). All four are in `@mdi/svg` 7.4.47, the version the frontend of Core
+2026.11.2 ships (home-assistant-frontend 20261028.6, `package.json`). A
 standard-library test checks that the keys equal the translation keys in `translations/en.json`. hassfest checks `icons.json`'s
 structure but only the `mdi:` prefix of a value (ha-core: `script/hassfest/icons.py`, `icon_value_validator`), so
 each name is checked once by hand against the Material Design Icons list when the file is written, and on the live
@@ -185,4 +188,10 @@ update, with the user's go and an offered backup. Rollback: the Marketplace rein
 
 ## Open Questions
 
-- The final icon names (D5) can change in review without changing the specs or the tasks.
+None. The icon names (D5) were settled in the group 3 review on 2026-11-24. The same review decided that the README
+describes installing and removing only through Home Assistant's built-in Marketplace (Settings, Marketplace),
+checked against the UI text of the Core 2026.11.2 frontend, with one line saying HACS is now built in as the
+Marketplace (user decision 2026-11-24). Reason: Core 2026.11.2 blocks the HACS custom integration and migrates
+existing installs to the Marketplace (ha-core: `homeassistant/loader.py`, `BLOCKED_CUSTOM_INTEGRATIONS`;
+`homeassistant/components/marketplace/migration.py`), and the integration requires 2026.11.0. The Marketplace still
+reads `hacs.json` (`components/marketplace/repositories/base.py`), so `hacs.json` and the HACS action in CI stay.

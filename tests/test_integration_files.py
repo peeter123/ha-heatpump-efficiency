@@ -22,6 +22,7 @@ _pkg.__path__ = [str(PACKAGE)]
 sys.modules["hpe_files_pkg"] = _pkg
 repairs_model = importlib.import_module("hpe_files_pkg.repairs_model")
 seasons = importlib.import_module("hpe_files_pkg.seasons")
+sensor_model = importlib.import_module("hpe_files_pkg.sensor_model")
 
 
 def load(path: Path):
@@ -296,6 +297,47 @@ class WorkflowTest(unittest.TestCase):
                 for root in roots:
                     self.assertIn(root, allowed, (path.name, root))
                     self.assertNotEqual(root, "tests_ha", path.name)
+
+
+class IconsTest(unittest.TestCase):
+    """The scenario "An icon for every translation key" of the period-efficiency spec."""
+
+    def setUp(self):
+        self.icons = load(PACKAGE / "icons.json")["entity"]["sensor"]
+        self.translations = load(PACKAGE / "translations" / "en.json")["entity"]["sensor"]
+
+    def test_keys_equal_the_sensor_translation_keys(self):
+        self.assertEqual(set(self.icons), set(self.translations))
+        names = (*sensor_model.eff.PERIODS, *set(sensor_model.SEASONS.values()))
+        code_keys = {
+            sensor_model.translation_key(service, name)
+            for service in val.SERVICES
+            for name in names
+            if name in sensor_model.eff.PERIODS or sensor_model.SEASONS.get(service) == name
+        }
+        self.assertEqual(set(self.icons), code_keys)
+
+    def test_every_icon_is_a_default_mdi_icon(self):
+        for key, icon in self.icons.items():
+            self.assertEqual(list(icon), ["default"], key)
+            self.assertTrue(icon["default"].startswith("mdi:"), key)
+
+    def test_one_icon_per_service_and_four_different_icons(self):
+        by_service = {}
+        for key, icon in self.icons.items():
+            service = max((s for s in val.SERVICES if key.startswith(s + "_")), key=len)
+            by_service.setdefault(service, set()).add(icon["default"])
+        self.assertEqual(set(by_service), set(val.SERVICES))
+        for service, found in by_service.items():
+            self.assertEqual(len(found), 1, service)
+        self.assertEqual(len({next(iter(found)) for found in by_service.values()}), 4)
+
+    def test_sensors_set_no_icon_in_code(self):
+        for path in PACKAGE.glob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("_attr_icon", text, path.name)
+            self.assertNotRegex(text, r"\bicon\s*=", path.name)
+            self.assertNotRegex(text, r"def icon\b", path.name)
 
 
 class ReadmeTest(unittest.TestCase):

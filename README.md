@@ -11,15 +11,40 @@ creates no cost entities.
 
 ## Status
 
-Version 0.1.0. The integration is installable through HACS as a custom repository (see Installation).
+Version 0.1.0. The integration is installable through the Home Assistant Marketplace from its GitHub link (see Installation).
+
+## Use cases
+
+- See what your heat pump really delivered per kWh of electricity today, this month, this year and over the last
+  12 months, the way your meters count it.
+- Follow the efficiency of each service (Heating, Hot water, Cooling) and of the whole unit (Overall) separately. A
+  cooling figure, especially in BTU/Wh, is not comparable with a heating figure.
+- Follow the efficiency per day and per month in a chart, and per heating or cooling season in a table (see
+  "Example dashboard cards"), for example to see the effect of a changed setting or a service visit.
+- Measure a seasonal performance factor of your own installation, as it really ran, next to the rated SCOP or SEER
+  of the data sheet (see "Measured versus rated SCOP and SEER").
+- Correct the efficiency for the heat a defrost takes from the circuit, when you have a statistic for it (see "The
+  defrost correction").
+
+## Supported heat pumps
+
+Any heat pump or installation for which Home Assistant has energy statistics of both the heat it delivers and the
+electricity it uses, for example from the heat pump's own counters or from a heat meter and an electricity meter. You
+map those statistics yourself in the setup UI; the integration is not tied to a make or model, talks to no device
+and needs no cloud account. The statistics must be energy statistics with a running sum, in kWh or another energy
+unit (see "Choosing statistics"). A heat pump without such counters cannot be used. If you only have power
+sensors (W), Home Assistant's Integral helper (a Riemann sum integral) can create an energy sensor from them. One example mapping is shown
+under "Example: Ecoforest ecoGEO with the author's ESPHome firmware".
 
 ## Installation
 
 Requires Home Assistant 2026.11.0 or newer and the recorder (on by default).
 
-- **HACS, custom repository:** in HACS open the menu, choose Custom repositories, add this repository's URL
-  (`https://github.com/peeter123/ha-heatpump-efficiency`) with the type Integration, then download "Heat Pump
-  Efficiency" and restart Home Assistant.
+- **Home Assistant Marketplace:** open Settings, Marketplace, choose Add from link, enter this repository's GitHub
+  link (`https://github.com/peeter123/ha-heatpump-efficiency`) and choose Add. If GitHub is not connected yet, you
+  are asked to connect it first; if it asks for the Type, choose Integration. Then open the repository, choose
+  Install and restart Home Assistant when it asks. HACS is now built into Home Assistant as the Marketplace, and
+  existing HACS installs move over by themselves.
 - **Manual copy:** copy the folder `custom_components/heatpump_efficiency` of this repository into the
   `custom_components` folder of your Home Assistant configuration (next to `configuration.yaml`) and restart Home
   Assistant.
@@ -152,7 +177,7 @@ under Definitions).
 When you change the Cooling efficiency unit in Configure and any Cooling sensor already has long-term statistics,
 a confirmation step is shown before anything is saved. Home Assistant cannot convert the Cooling sensors' existing
 long-term statistics to the new unit: after you save, it reports the unit change as a repair, and offers its fix
-in the statistics developer tools (Developer tools, Statistics). Until you fix the statistics there, or change the
+in the statistics tools (Settings, Tools, Statistics). Until you fix the statistics there, or change the
 unit back, Home Assistant stops compiling new long-term statistics for the affected Cooling sensors. This integration never changes statistics; it
 only reads them. The daily, monthly and other Cooling figures this integration calculates follow the new unit
 straight away, because they are computed from the energy statistics. Choose Submit in the confirmation step to
@@ -182,6 +207,10 @@ unknown (see the definitions below).
 The Cooling sensors (the four periods and the season) show the unit `BTU/Wh` when the Cooling efficiency unit is
 BTU/Wh (the figure is the W/W ratio times 3.412142), and no unit when it is W/W, so W/W entities are the same as
 before. The other sensors, Overall included, have no unit. The sensors have no device class.
+
+Every sensor has an icon of its service, the same for the four period sensors and the season sensor of that
+service, where there is one: `mdi:radiator` for Heating, `mdi:water-boiler` for Hot water, `mdi:snowflake` for
+Cooling and `mdi:heat-pump` for Overall. You can choose another icon for an entity in its settings.
 
 The default entity ID follows the device name and the sensor name at the time the entity is first created, for
 example `sensor.heat_pump_hot_water_month_to_date` for a heat pump named "Heat Pump" (these names are examples).
@@ -319,7 +348,7 @@ entities:
 ```
 
 Per-day chart with the custom [apexcharts-card](https://github.com/RomRider/apexcharts-card) (install it from
-HACS first). Its `data_generator` builds the points from the `daily` attribute: a JavaScript function body that
+the Marketplace first). Its `data_generator` builds the points from the `daily` attribute: a JavaScript function body that
 returns `[timestamp in ms, value]` pairs.
 
 ```yaml
@@ -392,6 +421,45 @@ point fields above); the other points have no such key, which the card's `defaul
 templates in strict mode, where an undefined key is an error).
 
 
+## Removing the integration
+
+1. Go to Settings, Devices & services, open the heat pump entry, open its menu and choose Delete. This removes the
+   entry, its device, its sensors and its repair issues. Do this for every heat pump entry. When you delete the last
+   entry and the integration came from the Marketplace, Home Assistant asks "Also uninstall Heat Pump Efficiency?":
+   choose Uninstall to skip step 2.
+2. Remove the files, depending on how you installed it:
+   - **Marketplace:** open Settings, Marketplace, open the repository, and choose Uninstall in its menu. If an entry
+     is still set up, the Marketplace offers "Delete and uninstall", which deletes its entries with their devices
+     and entities and uninstalls the integration.
+   - **Manual copy:** delete the folder `custom_components/heatpump_efficiency`.
+3. Restart Home Assistant. This is needed also after uninstalling through the Marketplace.
+
+The long-term statistics of the removed sensors stay in the recorder: Home Assistant never purges long-term
+statistics by itself, and the `purge_keep_days` option of the recorder does not apply to them. The integration never
+changes statistics, so it does not delete them either. To remove them, open Settings, Tools, Statistics, select the
+statistics of the removed sensors and choose Delete selected statistics. The statistics you mapped, which belong to other integrations, are not
+touched by removing this one.
+
+## Known limitations
+
+- **Delay of about 5 minutes.** The sensors update every 5 minutes, after Home Assistant has compiled the 5-minute
+  statistics, so a value is at most about one 5-minute period old (see "Update timing and caching").
+- **External statistics are read hourly.** A service or Overall that uses an external statistic (one imported by
+  another integration, not recorded from an entity) is read from hourly statistics, so its figures end at its last
+  hourly statistic. Such a statistic must be at most 2 hours behind, or a repair issue is raised (see "External
+  statistics must be at most 2 hours behind").
+- **No cost figures.** The integration shows efficiency only. It has no price source and creates no cost entities.
+- **Only as good as the mapped counters.** The efficiency is a ratio of the energy changes of the statistics you
+  map. A meter that misses energy, includes or leaves out standby, restarts at 0 or has estimated history gives a figure that
+  reflects that (see "A statistic restarts at 0" and "Estimated marks").
+- **Short periods.** The defrost correction is meant for a day or longer; there is no hourly figure (see "Valid per
+  day or longer").
+- **Measured, not rated.** A season sensor is the measured figure of your installation, not the rated SCOP or SEER
+  of a data sheet.
+- **Cooling unit change.** When the Cooling sensors already have long-term statistics, changing the Cooling
+  efficiency unit makes Home Assistant stop compiling new long-term statistics for them until you fix the
+  statistics or change the unit back (see "Changing the cooling unit").
+
 ## Troubleshooting
 
 ### Repair issues
@@ -410,7 +478,7 @@ service is not configured and Overall is not either) is not checked.
 - **Statistic is not an energy statistic for (heat pump):** the statistic's unit is not an energy unit, for
   example power in W. Map an energy statistic instead, or restore the energy unit of the source. If the unit of a
   sensor changes to a non-energy unit, Home Assistant stops writing its statistics and keeps the energy unit in
-  the statistic's metadata until you fix the statistics (Developer tools, Statistics), so you first see
+  the statistic's metadata until you fix the statistics (Settings, Tools, Statistics), so you first see
   "Statistic stopped updating" after 2 hours, not this issue.
 - **Statistic has no running sum for (heat pump):** the statistic only has a mean (or similar) and no running sum,
   so energy changes cannot be calculated. Map a statistic with a running sum, such as a total increasing energy

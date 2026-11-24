@@ -1,0 +1,63 @@
+{
+  "entity": {
+    "sensor": {
+      "heating_today": {
+        "default": "mdi:radiator"
+      },
+      "heating_month_to_date": {
+        "default": "mdi:radiator"
+      },
+      "heating_year_to_date": {
+        "default": "mdi:radiator"
+      },
+      "heating_rolling_12_months": {
+        "default": "mdi:radiator"
+      },
+      "heating_heating_season": {
+        "default": "mdi:radiator"
+      },
+      "hot_water_today": {
+        "default": "mdi:water-boiler"
+      },
+      "hot_water_month_to_date": {
+        "default": "mdi:water-boiler"
+      },
+      "hot_water_year_to_date": {
+        "default": "mdi:water-boiler"
+      },
+      "hot_water_rolling_12_months": {
+        "default": "mdi:water-boiler"
+      },
+      "cooling_today": {
+        "default": "mdi:snowflake"
+      },
+      "cooling_month_to_date": {
+        "default": "mdi:snowflake"
+      },
+      "cooling_year_to_date": {
+        "default": "mdi:snowflake"
+      },
+      "cooling_rolling_12_months": {
+        "default": "mdi:snowflake"
+      },
+      "cooling_cooling_season": {
+        "default": "mdi:snowflake"
+      },
+      "overall_today": {
+        "default": "mdi:heat-pump"
+      },
+      "overall_month_to_date": {
+        "default": "mdi:heat-pump"
+      },
+      "overall_year_to_date": {
+        "default": "mdi:heat-pump"
+      },
+      "overall_rolling_12_months": {
+        "default": "mdi:heat-pump"
+      },
+      "overall_heating_season": {
+        "default": "mdi:heat-pump"
+      }
+    }
+  }
+}
