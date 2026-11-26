@@ -23,18 +23,20 @@ jobs:
         with:
           category: integration
 
-  tests:
-    name: Tests
+  lint:
+    name: Lint and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - name: Run the unit tests
-        run: python -m unittest discover tests
-      - name: Compile the integration
-        run: python -m compileall custom_components
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version: "0.13.9"
+          cache-dependency-glob: scripts/lint.py
+      - name: Run the lint entry point
+        run: python scripts/lint.py
 
   ha-tests:
     name: Home Assistant tests
@@ -49,7 +51,7 @@ jobs:
         run: >-
           uv run --no-project --python 3.14
           --with pytest-homeassistant-custom-component==0.13.375
-          pytest --cov=custom_components.heatpump_efficiency --cov-branch --cov-report=term-missing
+          pytest tests_ha --cov=custom_components.heatpump_efficiency --cov-branch --cov-report=term-missing
       - name: Require full coverage of the config flow
         run: >-
           uv run --no-project --python 3.14

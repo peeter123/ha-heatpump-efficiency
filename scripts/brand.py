@@ -7,13 +7,11 @@ the first argument. The geometry below, in a 256 by 256 grid of design units, is
 files are generated from it. Shapes are rasterised with signed distance functions and one pixel of anti-aliasing.
 """
 
-from __future__ import annotations
-
 import math
+from pathlib import Path
 import struct
 import sys
 import zlib
-from pathlib import Path
 
 DESIGN = 256.0
 TILE_COLOUR = (0x44, 0x88, 0x2E)
@@ -23,7 +21,13 @@ CUTOUT_WIDTH = 26.0
 Point = tuple[float, float]
 Segment = tuple[Point, Point]
 
-TILE = (128.0, 128.0, 128.0, 128.0, 56.0)  # centre x, centre y, half width, half height, radius
+TILE = (
+    128.0,
+    128.0,
+    128.0,
+    128.0,
+    56.0,
+)  # centre x, centre y, half width, half height, radius
 CABINET = (128.0, 126.0, 96.0, 64.0, 20.0)  # x 32..224, y 62..190
 GRILLE: tuple[Segment, ...] = (
     ((152.0, 102.0), (200.0, 102.0)),
@@ -45,7 +49,9 @@ FEET = (
 SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
-def box_distance(px: float, py: float, box: tuple[float, float, float, float, float]) -> float:
+def box_distance(
+    px: float, py: float, box: tuple[float, float, float, float, float]
+) -> float:
     """Signed distance from a point to a filled rounded box."""
     cx, cy, hw, hh, r = box
     qx = abs(px - cx) - (hw - r)
@@ -53,7 +59,9 @@ def box_distance(px: float, py: float, box: tuple[float, float, float, float, fl
     return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - r
 
 
-def box_outline_distance(px: float, py: float, box: tuple[float, float, float, float, float], width: float) -> float:
+def box_outline_distance(
+    px: float, py: float, box: tuple[float, float, float, float, float], width: float
+) -> float:
     """Signed distance to the outline of a rounded box."""
     return abs(box_distance(px, py, box)) - width / 2
 
@@ -67,7 +75,9 @@ def capsule_distance(px: float, py: float, segment: Segment, width: float) -> fl
     return math.hypot(px - (ax + t * dx), py - (ay + t * dy)) - width / 2
 
 
-def ring_distance(px: float, py: float, centre: Point, radius: float, width: float) -> float:
+def ring_distance(
+    px: float, py: float, centre: Point, radius: float, width: float
+) -> float:
     """Signed distance to a circle outline."""
     return abs(math.hypot(px - centre[0], py - centre[1]) - radius) - width / 2
 
@@ -111,11 +121,18 @@ def pixel(i: int, j: int, size: int) -> tuple[int, int, int, int]:
 
 def draw(size: int) -> list[bytes]:
     """Draw the icon at size by size pixels; one bytes row of RGBA per scanline."""
-    return [bytes(v for i in range(size) for v in pixel(i, j, size)) for j in range(size)]
+    return [
+        bytes(v for i in range(size) for v in pixel(i, j, size)) for j in range(size)
+    ]
 
 
 def _chunk(kind: bytes, data: bytes) -> bytes:
-    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    return (
+        struct.pack(">I", len(data))
+        + kind
+        + data
+        + struct.pack(">I", zlib.crc32(kind + data))
+    )
 
 
 def png_bytes(width: int, height: int, rows: list[bytes]) -> bytes:
@@ -133,7 +150,11 @@ def png_bytes(width: int, height: int, rows: list[bytes]) -> bytes:
 def main() -> None:
     """Write icon.png and icon@2x.png."""
     root = Path(__file__).resolve().parents[1]
-    folder = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "custom_components" / "heatpump_efficiency" / "brand"
+    folder = (
+        Path(sys.argv[1])
+        if len(sys.argv) > 1
+        else root / "custom_components" / "heatpump_efficiency" / "brand"
+    )
     folder.mkdir(parents=True, exist_ok=True)
     for name, size in (("icon.png", 256), ("icon@2x.png", 512)):
         data = png_bytes(size, size, draw(size))

@@ -6,14 +6,11 @@ unique IDs, translation keys and units (the Cooling unit), the attributes of a p
 and of a season sensor, and which of this entry's registry entries are stale.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from . import efficiency as eff
-from . import validation as val
+from . import efficiency as eff, validation as val
 
 # The series attribute each period sensor carries (design D5); both are unrecorded.
 SERIES_ATTRIBUTES: Mapping[str, str] = {
@@ -29,7 +26,9 @@ ATTR_COMPLETE = "complete"
 ATTR_ENDED = "ended"
 ATTR_DEFROST_ENERGY = "defrost_energy"  # only when the result is corrected (design D7)
 ATTR_EFFICIENCY_UNCORRECTED = "efficiency_uncorrected"
-ATTR_DEFROST_SINCE = "defrost_since"  # only when set: the covered start is before the defrost start
+ATTR_DEFROST_SINCE = (
+    "defrost_since"  # only when set: the covered start is before the defrost start
+)
 ATTR_SEASONS = "seasons"  # the season points; unrecorded (design D7)
 
 # The season sensor of each service (design D7); Hot water has none. The name is
@@ -84,20 +83,32 @@ def sensor_specs(entry_id: str, mapping: Mapping[str, Any]) -> list[SensorSpec]:
     """
     specs = []
     for service in val.configured_services(mapping):
-        unit = cooling_unit_of_measurement(mapping) if service == val.SERVICE_COOLING else None
-        for period in eff.PERIODS:
-            specs.append(
-                SensorSpec(
-                    service, period, unique_id(entry_id, service, period),
-                    translation_key(service, period), False, unit,
-                )
+        unit = (
+            cooling_unit_of_measurement(mapping)
+            if service == val.SERVICE_COOLING
+            else None
+        )
+        specs.extend(
+            SensorSpec(
+                service,
+                period,
+                unique_id(entry_id, service, period),
+                translation_key(service, period),
+                False,
+                unit,
             )
+            for period in eff.PERIODS
+        )
         season = SEASONS.get(service)
         if season is not None:
             specs.append(
                 SensorSpec(
-                    service, season, unique_id(entry_id, service, season),
-                    translation_key(service, season), True, unit,
+                    service,
+                    season,
+                    unique_id(entry_id, service, season),
+                    translation_key(service, season),
+                    True,
+                    unit,
                 )
             )
     return specs
@@ -120,7 +131,9 @@ def stale_unique_ids(
     expected = {spec.unique_id for spec in sensor_specs(entry_id, mapping)}
     prefix = f"{entry_id}_"
     return [
-        uid for uid in existing if uid is not None and uid.startswith(prefix) and uid not in expected
+        uid
+        for uid in existing
+        if uid is not None and uid.startswith(prefix) and uid not in expected
     ]
 
 

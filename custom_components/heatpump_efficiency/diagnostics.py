@@ -1,7 +1,5 @@
 """Diagnostics of the Heat Pump Efficiency integration (design D8)."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from typing import Any
 
@@ -16,8 +14,10 @@ from .validation import SECTION_SEASONS, season_dates_valid
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: HeatPumpEfficiencyConfigEntry
 ) -> dict[str, Any]:
-    """Options, season dates, metadata, last query windows, cached energies, boundary reads,
-    season points and last errors.
+    """Return the diagnostics of a config entry.
+
+    The data: options, season dates, metadata, last query windows, cached energies,
+    boundary reads, season points and last errors.
 
     The defrost data (design D8): the options hold the defrost fields, ``defrost`` lists
     each service's defrost statistics and their start, and the energies and season of a
@@ -41,4 +41,7 @@ def _season_dates(options: Mapping[str, Any]) -> dict[str, list[str]] | None:
     section = options.get(SECTION_SEASONS)
     if not section:
         return None
-    return {kind: [section.get(f"{kind}_start"), section.get(f"{kind}_end")] for kind in (HEATING, COOLING)}
+    return {
+        kind: [section.get(f"{kind}_start"), section.get(f"{kind}_end")]
+        for kind in (HEATING, COOLING)
+    }

@@ -4,8 +4,6 @@ Pure: standard library and pure siblings only. ``issues.py`` applies the plan to
 the Home Assistant issue registry.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, tzinfo
@@ -69,7 +67,9 @@ def unchecked(
         statistic_id
         for statistic_id, value in health.items()
         if value == eff.HEALTH_STALE
-        and errors.get(eff.SOURCE_HOUR if statistic_id in hourly else eff.SOURCE_5MINUTE)
+        and errors.get(
+            eff.SOURCE_HOUR if statistic_id in hourly else eff.SOURCE_5MINUTE
+        )
     )
 
 
@@ -90,7 +90,9 @@ def _placeholders(
 ) -> dict[str, str]:
     placeholders = {"heat_pump": heat_pump, "statistic_id": statistic_id}
     if key == ISSUE_KEYS[eff.HEALTH_STALE] and last_row_end is not None:
-        placeholders[LAST_STATISTICS] = datetime.fromtimestamp(last_row_end, tz).strftime(TIME_FORMAT)
+        placeholders[LAST_STATISTICS] = datetime.fromtimestamp(
+            last_row_end, tz
+        ).strftime(TIME_FORMAT)
     return placeholders
 
 
@@ -130,7 +132,11 @@ def plan_issues(
             key = issue_key(health.get(statistic_id, eff.HEALTH_OK), last)
             if key is None or statistic_id in skipped:
                 continue
-            create.append(IssueSpec(iid, key, _placeholders(key, heat_pump, statistic_id, last, tz)))
+            create.append(
+                IssueSpec(
+                    iid, key, _placeholders(key, heat_pump, statistic_id, last, tz)
+                )
+            )
     wanted = {spec.issue_id for spec in create}
     delete: list[str] = []
     for iid in sorted(set(existing)):

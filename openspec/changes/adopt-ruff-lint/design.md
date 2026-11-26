@@ -119,6 +119,8 @@
      Python 3.14, so the compile check matches the target interpreter whatever Python started the script.
 
 - **Every step runs**, even after a failure, so one run shows all findings.
+- **An `OSError` stops the run** with exit 2 after listing the steps already failed: every step goes through uv,
+  so if one program cannot be started, the rest cannot either (review of group 1, 2026-11-26).
 - **Exit status:**
   - 0 when all steps pass;
   - 1 when any step exits non-zero (findings, failing tests, or a tool uv could not fetch, whose message uv
@@ -183,6 +185,15 @@
 - **Tests:** the tests that check the spec scenarios arrive in the group that makes them true. "No exemptions left
   for the tests" and "No unittest test cases" are written in groups 2 and 3, with their assertions tightened
   there.
+
+### D5a. Private names used by the tests
+
+- Core's `SLF001` forbids the tests to reach private module members.
+- Four helpers the tests call are made public rather than exempted with `noqa` (group 1, 2026-11-26):
+  - `efficiency.daily_plan` and `efficiency.monthly_plan`;
+  - `validation.ERROR_PRIORITY`;
+  - `engine.resolve_effective`.
+- The integration has no public Python API that other code imports, so the wider module surface costs nothing.
 
 ### D6. `from __future__ import annotations`
 

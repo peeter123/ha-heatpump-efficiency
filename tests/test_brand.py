@@ -1,17 +1,17 @@
 """Tests of the brand images and of the script that draws them."""
 
-from __future__ import annotations
-
 import importlib.util
+from pathlib import Path
 import struct
 import sys
 import unittest
 import zlib
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BRAND = ROOT / "custom_components" / "heatpump_efficiency" / "brand"
-_spec = importlib.util.spec_from_file_location("brand_script", ROOT / "scripts" / "brand.py")
+_spec = importlib.util.spec_from_file_location(
+    "brand_script", ROOT / "scripts" / "brand.py"
+)
 brand = importlib.util.module_from_spec(_spec)
 sys.modules["brand_script"] = brand
 _spec.loader.exec_module(brand)
@@ -63,7 +63,9 @@ def pixel_at(rows: list[bytes], x: int, y: int) -> tuple[int, ...]:
 
 class BrandFilesTest(unittest.TestCase):
     def test_only_the_two_icons(self):
-        self.assertEqual(sorted(p.name for p in BRAND.iterdir()), ["icon.png", "icon@2x.png"])
+        self.assertEqual(
+            sorted(p.name for p in BRAND.iterdir()), ["icon.png", "icon@2x.png"]
+        )
 
     def check_file(self, name: str, size: int):
         width, height, colour, rows = read_png((BRAND / name).read_bytes())
@@ -72,7 +74,8 @@ class BrandFilesTest(unittest.TestCase):
         x, y = int(128 * size / 256), int(40 * size / 256)
         self.assertEqual(pixel_at(rows, x, y), (0x44, 0x88, 0x2E, 255))
         self.assertEqual(
-            pixel_at(rows, int(128 * size / 256), int(62 * size / 256)), (255, 255, 255, 255)
+            pixel_at(rows, int(128 * size / 256), int(62 * size / 256)),
+            (255, 255, 255, 255),
         )
 
     def test_icon(self):
@@ -104,15 +107,27 @@ class CoverageTest(unittest.TestCase):
 
 class PixelColourTest(unittest.TestCase):
     def colour(self, **kwargs):
-        shapes = dict(tile=0.0, cabinet=0.0, grille=0.0, ring=0.0, feet=0.0, arrow=0.0, cutout=0.0)
+        shapes = {
+            "tile": 0.0,
+            "cabinet": 0.0,
+            "grille": 0.0,
+            "ring": 0.0,
+            "feet": 0.0,
+            "arrow": 0.0,
+            "cutout": 0.0,
+        }
         shapes.update(kwargs)
         return brand.pixel_colour(**shapes)
 
     def test_cutout_cancels_the_ring(self):
-        self.assertEqual(self.colour(tile=1.0, ring=1.0, cutout=1.0), (0x44, 0x88, 0x2E, 255))
+        self.assertEqual(
+            self.colour(tile=1.0, ring=1.0, cutout=1.0), (0x44, 0x88, 0x2E, 255)
+        )
 
     def test_arrow_wins_over_the_cutout(self):
-        self.assertEqual(self.colour(tile=1.0, arrow=1.0, cutout=1.0), (255, 255, 255, 255))
+        self.assertEqual(
+            self.colour(tile=1.0, arrow=1.0, cutout=1.0), (255, 255, 255, 255)
+        )
 
     def test_alpha_comes_from_the_tile_alone(self):
         self.assertEqual(self.colour(tile=0.0, cabinet=1.0, arrow=1.0)[3], 0)

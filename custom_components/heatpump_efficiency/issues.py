@@ -7,17 +7,14 @@ false and loads the integration's ``repairs`` platform (``async_create_fix_flow`
 only for fixable ones. This module is not such a platform.
 """
 
-from __future__ import annotations
-
-import logging
 from collections.abc import Mapping
 from datetime import tzinfo
+import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import issue_registry as ir
 
-from . import efficiency as eff
-from . import engine, repairs_model
+from . import efficiency as eff, engine, repairs_model
 from .const import DOMAIN
 
 if TYPE_CHECKING:
@@ -53,7 +50,7 @@ def async_update_issues(
     """
     try:
         _async_apply(hass, entry, mapping, result, state, tz)
-    except Exception:  # noqa: BLE001 - a repairs failure must not fail the update
+    except Exception:  # a repairs failure must not fail the update
         _LOGGER.exception("Updating the repair issues of %s failed", entry.title)
 
 

@@ -17,8 +17,6 @@ difference of two readings equals the sum of the hourly changes between them,
 which is what the day and month rows add up to.
 """
 
-from __future__ import annotations
-
 import calendar
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -27,7 +25,9 @@ from typing import Any
 
 from . import efficiency as eff
 
-BOUNDARY_WINDOW = timedelta(days=31)  # how far before a boundary its hourly rows are read
+BOUNDARY_WINDOW = timedelta(
+    days=31
+)  # how far before a boundary its hourly rows are read
 
 HEATING = "heating"
 COOLING = "cooling"
@@ -80,10 +80,14 @@ class Season:
         """
         start_month, start_dom = _parse(start_md)
         end_month, end_dom = _parse(end_md)
-        end_year = year if (start_month, start_dom) <= (end_month, end_dom) else year + 1
+        end_year = (
+            year if (start_month, start_dom) <= (end_month, end_dom) else year + 1
+        )
         if (end_month, end_dom) == (2, 28) and calendar.isleap(end_year):
             end_dom = 29
-        return cls(date(year, start_month, start_dom), date(end_year, end_month, end_dom))
+        return cls(
+            date(year, start_month, start_dom), date(end_year, end_month, end_dom)
+        )
 
     def start(self, tz: tzinfo) -> datetime:
         """The natural start: the UTC start of the start day (input: time zone)."""
@@ -278,7 +282,9 @@ def season_points(
     if defrost is not None and len(defrost) != len(infos):
         raise ValueError("one defrost energy per season")
     points = []
-    for index, (info, (output, electrical)) in enumerate(zip(infos, energies)):
+    for index, (info, (output, electrical)) in enumerate(
+        zip(infos, energies, strict=True)
+    ):
         point = {
             "start": info.covered_start.astimezone(tz).isoformat(),
             "end": info.natural_end.astimezone(tz).isoformat(),
@@ -291,8 +297,14 @@ def season_points(
         }
         if defrost is not None:
             defrost_kwh = defrost[index]
-            point["efficiency"] = eff.corrected_ratio(output, defrost_kwh, electrical, factor)
-            point["defrost_energy"] = None if defrost_kwh is None else round(defrost_kwh, 3)
-            point["defrost_partial"] = eff.defrost_partial(info.covered_start, defrost_start)
+            point["efficiency"] = eff.corrected_ratio(
+                output, defrost_kwh, electrical, factor
+            )
+            point["defrost_energy"] = (
+                None if defrost_kwh is None else round(defrost_kwh, 3)
+            )
+            point["defrost_partial"] = eff.defrost_partial(
+                info.covered_start, defrost_start
+            )
         points.append(point)
     return points

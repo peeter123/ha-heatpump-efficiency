@@ -1,7 +1,5 @@
 """Sensor platform: four period sensors and a season sensor per configured service."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
@@ -41,6 +39,7 @@ class EfficiencySensor(CoordinatorEntity[HeatPumpEfficiencyCoordinator], SensorE
         entry: HeatPumpEfficiencyConfigEntry,
         spec: SensorSpec,
     ) -> None:
+        """Set up the sensor of one service and period from its spec."""
         super().__init__(coordinator)
         self._spec = spec
         self._attr_unique_id = spec.unique_id
@@ -91,6 +90,7 @@ class TodayEfficiencySensor(EfficiencySensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the attributes with the daily series added."""
         attributes = super().extra_state_attributes
         service = self._service
         if attributes is None or service is None:
@@ -105,6 +105,7 @@ class MonthToDateEfficiencySensor(EfficiencySensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the attributes with the monthly series added."""
         attributes = super().extra_state_attributes
         service = self._service
         if attributes is None or service is None:
@@ -157,13 +158,19 @@ async def async_setup_entry(
         for registered in er.async_entries_for_config_entry(registry, entry.entry_id)
         if registered.domain == "sensor" and registered.platform == DOMAIN
     ]
-    stale = set(stale_unique_ids(entry.entry_id, coordinator.mapping, (r.unique_id for r in own)))
+    stale = set(
+        stale_unique_ids(
+            entry.entry_id, coordinator.mapping, (r.unique_id for r in own)
+        )
+    )
     for registered in own:
         if registered.unique_id in stale:
             registry.async_remove(registered.entity_id)
     async_add_entities(
         (
-            SeasonEfficiencySensor if spec.is_season else _CLASSES.get(spec.period, EfficiencySensor)
+            SeasonEfficiencySensor
+            if spec.is_season
+            else _CLASSES.get(spec.period, EfficiencySensor)
         )(coordinator, entry, spec)
         for spec in sensor_specs(entry.entry_id, coordinator.mapping)
     )

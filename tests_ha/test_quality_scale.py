@@ -12,7 +12,9 @@ import pytest
 
 from homeassistant.util.yaml import load_yaml_dict
 
-PACKAGE = Path(__file__).resolve().parents[1] / "custom_components" / "heatpump_efficiency"
+PACKAGE = (
+    Path(__file__).resolve().parents[1] / "custom_components" / "heatpump_efficiency"
+)
 
 TIERS = ("bronze", "silver", "gold", "platinum")
 
@@ -82,6 +84,7 @@ ALL_RULES = {
     ],
 }
 
+
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations():
     """Override the conftest fixture of the same name: these tests only read files and need no hass.
@@ -103,7 +106,11 @@ def unmet_rules(rules, tier):
     """Rules of the given tier and the tiers below it that are neither done nor exempt."""
     unmet = []
     for name in TIERS[: TIERS.index(tier) + 1]:
-        unmet.extend(r for r in ALL_RULES[name] if rule_status(rules.get(r)) not in ("done", "exempt"))
+        unmet.extend(
+            r
+            for r in ALL_RULES[name]
+            if rule_status(rules.get(r)) not in ("done", "exempt")
+        )
     return unmet
 
 
@@ -119,6 +126,7 @@ def supported_tier(rules):
 
 @pytest.fixture(scope="module")
 def rules():
+    """The rules of the quality scale record."""
     record = load_yaml_dict(PACKAGE / "quality_scale.yaml")
     # ha-core 2026.11.2 script/hassfest/quality_scale.py SCHEMA allows only the top-level key "rules".
     assert set(record) == {"rules"}
@@ -127,15 +135,18 @@ def rules():
 
 @pytest.fixture(scope="module")
 def manifest():
+    """The integration manifest."""
     return json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))
 
 
 def test_rule_count():
+    """The record counts the 54 rules of the four tiers."""
     assert [len(ALL_RULES[tier]) for tier in TIERS] == [20, 10, 21, 3]
     assert len(RULE_TIER) == 54
 
 
 def test_every_rule_listed(rules):
+    """The record lists every rule of every tier."""
     assert set(rules) == set(RULE_TIER)
 
 
@@ -151,37 +162,55 @@ def check_value(name, value):
         return
     assert isinstance(value, dict), f"{name}: expected a string or a mapping"
     assert set(value) == {"status", "comment"}, f"{name}: keys {sorted(value)}"
-    assert value["status"] in ("done", "todo", "exempt"), f"{name}: status {value['status']!r}"
-    assert isinstance(value["comment"], str) and value["comment"].strip(), f"{name}: empty comment"
+    assert value["status"] in ("done", "todo", "exempt"), (
+        f"{name}: status {value['status']!r}"
+    )
+    assert isinstance(value["comment"], str) and value["comment"].strip(), (
+        f"{name}: empty comment"
+    )
 
 
 def test_values_valid(rules):
+    """Every rule value has the shape of the record."""
     for name, value in rules.items():
         check_value(name, value)
 
 
 def test_value_check_rejects_missing_reasons():
+    """The value check rejects an exempt or todo rule without a comment."""
     check_value("ok", "done")
     check_value("ok", {"status": "exempt", "comment": "A reason."})
-    for bad in ("exempt", "todo", {"status": "todo"}, {"status": "exempt", "comment": ""}):
+    for bad in (
+        "exempt",
+        "todo",
+        {"status": "todo"},
+        {"status": "exempt", "comment": ""},
+    ):
         with pytest.raises(AssertionError):
             check_value("bad", bad)
 
 
 def test_exempt_and_todo_have_comments(rules):
+    """Every exempt or todo rule carries a comment."""
     for name, value in rules.items():
         if rule_status(value) in ("exempt", "todo"):
-            assert isinstance(value, dict) and value["comment"].strip(), f"{name}: needs a comment"
+            assert isinstance(value, dict) and value["comment"].strip(), (
+                f"{name}: needs a comment"
+            )
 
 
 def test_declared_tier_is_backed_by_the_record(rules, manifest):
+    """The tier in the manifest has all its rules done or exempt."""
     declared = manifest["quality_scale"]
     assert declared in TIERS
     unmet = unmet_rules(rules, declared)
-    assert not unmet, f"the manifest claims {declared} but these rules are not done or exempt: {unmet}"
+    assert not unmet, (
+        f"the manifest claims {declared} but these rules are not done or exempt: {unmet}"
+    )
 
 
 def test_declared_tier_is_the_highest_supported(rules, manifest):
+    """The manifest declares the highest tier the record supports."""
     supported = supported_tier(rules)
     assert manifest["quality_scale"] == supported, (
         f"the record supports {supported} but the manifest declares {manifest['quality_scale']}"
@@ -189,10 +218,11 @@ def test_declared_tier_is_the_highest_supported(rules, manifest):
 
 
 def test_tier_helper_names_the_failing_rule(rules):
-    broken = dict(rules, **{"brands": {"status": "todo", "comment": "x"}})
+    """The tier helpers name the failing rule and stop at the right tier."""
+    broken = dict(rules, brands={"status": "todo", "comment": "x"})
     assert unmet_rules(broken, "bronze") == ["brands"]
     assert supported_tier(broken) is None
-    complete = {name: "done" for name in RULE_TIER}
+    complete = dict.fromkeys(RULE_TIER, "done")
     assert supported_tier(complete) == "platinum"
     complete["strict-typing"] = {"status": "todo", "comment": "x"}
     assert supported_tier(complete) == "gold"

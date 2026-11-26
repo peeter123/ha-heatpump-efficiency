@@ -10,16 +10,14 @@ loaded with a stub of ``homeassistant.helpers.issue_registry`` and
 ``homeassistant.const`` that exist only while it is imported.
 """
 
-from __future__ import annotations
-
-import importlib
-import sys
-import types
-import unittest
 from datetime import datetime, timedelta
 from enum import StrEnum
+import importlib
 from pathlib import Path
+import sys
+import types
 from types import SimpleNamespace
+import unittest
 
 # This folder on sys.path, so the module also runs as ``tests.test_repairs`` from the repository root.
 _TESTS = str(Path(__file__).resolve().parent)
@@ -40,7 +38,9 @@ class FakeIssueRegistry:
     def clear_config_entry(self, config_entry_id: str) -> None:
         # helpers/issue_registry.py IssueRegistry.async_clear_config_entry, called by
         # config_entries.py ConfigEntries._async_clean_up when an entry is removed.
-        for key in [k for k, i in self.issues.items() if i.config_entry_id == config_entry_id]:
+        for key in [
+            k for k, i in self.issues.items() if i.config_entry_id == config_entry_id
+        ]:
             del self.issues[key]
 
 
@@ -57,10 +57,21 @@ def _load_glue(registry: FakeIssueRegistry):
     ir.async_get = lambda hass: registry
 
     def async_create_issue(
-        hass, domain, issue_id, *, config_entry_id=None, is_fixable, severity,
-        translation_key, translation_placeholders=None, **kwargs,
+        hass,
+        domain,
+        issue_id,
+        *,
+        config_entry_id=None,
+        is_fixable,
+        severity,
+        translation_key,
+        translation_placeholders=None,
+        **kwargs,
     ):
-        if config_entry_id is not None and config_entry_id not in registry.known_entries:
+        if (
+            config_entry_id is not None
+            and config_entry_id not in registry.known_entries
+        ):
             raise RuntimeError("Can't link issue to unknown config entry")
         registry.issues[(domain, issue_id)] = SimpleNamespace(
             issue_id=issue_id,
@@ -119,7 +130,9 @@ class Stats(te.FakeStats):
         self.meta: dict[str, dict] = {}
 
     async def read(self, source, statistic_ids, window, units, types):
-        return await super().read(source, set(statistic_ids) - self.missing, window, units, types)
+        return await super().read(
+            source, set(statistic_ids) - self.missing, window, units, types
+        )
 
     async def metadata(self, statistic_ids):
         rows = await super().metadata(set(statistic_ids) - self.missing)
@@ -142,21 +155,32 @@ class Rig:
 
     def update(self, now: datetime = NOW):
         self.stats.now = now
-        result = te.asyncio.run(engine.async_update(self.state, self.mapping, self.stats, now, te.TZ))
-        self.glue.async_update_issues(object(), self.entry, self.mapping, result, self.state, te.TZ)
+        result = te.asyncio.run(
+            engine.async_update(self.state, self.mapping, self.stats, now, te.TZ)
+        )
+        self.glue.async_update_issues(
+            object(), self.entry, self.mapping, result, self.state, te.TZ
+        )
         return result
 
     def issues(self) -> dict[str, tuple[str, dict]]:
         return {
             issue_id: (i.translation_key, i.translation_placeholders)
             for (domain, issue_id), i in self.registry.issues.items()
-            if domain == "heatpump_efficiency" and i.config_entry_id == self.entry.entry_id
+            if domain == "heatpump_efficiency"
+            and i.config_entry_id == self.entry.entry_id
         }
 
 
 def make_rig(**kwargs) -> Rig:
     stats = Stats()
-    for sid, rate in ((te.OUT_H, 2.0), (te.EL_H, 0.5), (te.OUT_W, 1.0), (te.EL_W, 0.25), (te.OUT_A, 3.0)):
+    for sid, rate in (
+        (te.OUT_H, 2.0),
+        (te.EL_H, 0.5),
+        (te.OUT_W, 1.0),
+        (te.EL_W, 0.25),
+        (te.OUT_A, 3.0),
+    ):
         stats.series[sid] = te.Series(te.FIRST, rate)
     stats.series[te.EL_A] = te.Series(te.FIRST, 0.75, source="external")
     return Rig(stats=stats, **kwargs)
@@ -225,7 +249,9 @@ class ScenarioTest(unittest.TestCase):
         rig.stats.series[te.EL_H].lag = 3 * te.H
         rig.update()
         _, placeholders = rig.issues()[iid(te.EL_H)]
-        self.assertEqual(set(placeholders), {"heat_pump", "statistic_id", "last_statistics"})
+        self.assertEqual(
+            set(placeholders), {"heat_pump", "statistic_id", "last_statistics"}
+        )
 
     def test_stale_without_any_row_in_the_window(self):
         # Design D7: no row today or in the last 3 hours has its own key, without a last time.
@@ -243,7 +269,10 @@ class ScenarioTest(unittest.TestCase):
         rig.stats.series[te.EL_H].lag = 5 * te.H
         rig.update()
         key, placeholders = rig.issues()[iid(te.EL_H)]
-        self.assertEqual((key, placeholders["last_statistics"]), ("statistic_stale", "2026-11-17 06:20"))
+        self.assertEqual(
+            (key, placeholders["last_statistics"]),
+            ("statistic_stale", "2026-11-17 06:20"),
+        )
         # Shortly after midnight the window is the last 3 hours: a row 5 hours old is outside it.
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 5 * te.H
@@ -253,7 +282,9 @@ class ScenarioTest(unittest.TestCase):
     def test_switches_between_the_stale_keys(self):
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 150 * 60
-        rig.update(te.utc(2026, 11, 17, 23, 5, 30))  # 00:05 local: window is the last 3 hours
+        rig.update(
+            te.utc(2026, 11, 17, 23, 5, 30)
+        )  # 00:05 local: window is the last 3 hours
         self.assertEqual(rig.issues()[iid(te.EL_H)][0], "statistic_stale")
         rig.stats.series[te.EL_H].lag = 4 * te.H
         rig.update(te.utc(2026, 11, 17, 23, 10, 30))
@@ -285,7 +316,9 @@ class ScenarioTest(unittest.TestCase):
         self.assertIsNone(result.services["heating"].periods["year_to_date"].efficiency)
         result = rig.update(NOW + timedelta(days=1))
         self.assertEqual(rig.issues(), {})
-        self.assertEqual(result.services["heating"].periods["year_to_date"].efficiency, 4.0)
+        self.assertEqual(
+            result.services["heating"].periods["year_to_date"].efficiency, 4.0
+        )
 
     def test_problem_resolved_when_the_mapping_changes_to_a_valid_statistic(self):
         rig = make_rig()
@@ -305,14 +338,20 @@ class ScenarioTest(unittest.TestCase):
         self.assertEqual(rig.issues(), {})
         rig.stats.missing.add(te.EL_H)
         rig.update(NOW + timedelta(minutes=5))
-        self.assertEqual({k: v[0] for k, v in rig.issues().items()}, {iid(te.EL_H): "statistic_missing"})
+        self.assertEqual(
+            {k: v[0] for k, v in rig.issues().items()},
+            {iid(te.EL_H): "statistic_missing"},
+        )
 
     def test_unit_changed_to_watt_after_setup(self):
         rig = make_rig()
         rig.update()
         rig.stats.meta[te.OUT_H] = {"unit_class": "power", "has_sum": False}
         rig.update(NOW + timedelta(minutes=5))
-        self.assertEqual({k: v[0] for k, v in rig.issues().items()}, {iid(te.OUT_H): "statistic_not_energy"})
+        self.assertEqual(
+            {k: v[0] for k, v in rig.issues().items()},
+            {iid(te.OUT_H): "statistic_not_energy"},
+        )
         rig.stats.meta.clear()  # the energy unit restored
         rig.update(NOW + timedelta(minutes=10))
         self.assertEqual(rig.issues(), {})
@@ -333,7 +372,9 @@ class ScenarioTest(unittest.TestCase):
             rig.stats.missing.add(te.EL_H)
             rig.update()
         self.assertEqual(len(registry.issues), 2)
-        registry.clear_config_entry(ENTRY_ID)  # Home Assistant does this on entry removal
+        registry.clear_config_entry(
+            ENTRY_ID
+        )  # Home Assistant does this on entry removal
         self.assertEqual(mine.issues(), {})
         self.assertEqual(set(other.issues()), {iid(te.EL_H, OTHER_ENTRY_ID)})
 
@@ -463,21 +504,32 @@ class DefrostIssueTest(unittest.TestCase):
         self.assertEqual(rig.issues()[iid(te.DEF_H)][0], "statistic_stale")
 
     def test_defrost_in_an_unconfigured_section_is_checked_through_overall(self):
-        mapping = {"heating": {"defrost_heat": [te.DEF_H]}, "overall": te.MAPPING_OVERALL["overall"]}
+        mapping = {
+            "heating": {"defrost_heat": [te.DEF_H]},
+            "overall": te.MAPPING_OVERALL["overall"],
+        }
         rig = self.rig(mapping)
         rig.stats.missing.add(te.DEF_H)
         rig.update()
         self.assertEqual(rig.issues()[iid(te.DEF_H)][0], "statistic_missing")
 
     def test_defrost_in_an_unconfigured_section_is_stale_through_overall(self):
-        mapping = {"heating": {"defrost_heat": [te.DEF_H]}, "overall": te.MAPPING_OVERALL["overall"]}
+        mapping = {
+            "heating": {"defrost_heat": [te.DEF_H]},
+            "overall": te.MAPPING_OVERALL["overall"],
+        }
         rig = self.rig(mapping)
         rig.stats.series[te.DEF_H].lag = 3 * te.H
         rig.update()
         self.assertEqual(rig.issues()[iid(te.DEF_H)][0], "statistic_stale")
 
     def test_defrost_that_corrects_nothing_is_not_checked(self):
-        rig = self.rig({"heating": {"defrost_heat": [te.DEF_H]}, "hot_water": te.MAPPING["hot_water"]})
+        rig = self.rig(
+            {
+                "heating": {"defrost_heat": [te.DEF_H]},
+                "hot_water": te.MAPPING["hot_water"],
+            }
+        )
         rig.stats.missing.add(te.DEF_H)
         rig.update()
         self.assertEqual(rig.issues(), {})
@@ -488,9 +540,25 @@ class PlanTest(unittest.TestCase):
 
     TZ = te.TZ
 
-    def plan(self, health, existing=(), metadata_ok=True, mapped=("a", "b"), skip=(), last=None):
+    def plan(
+        self,
+        health,
+        existing=(),
+        metadata_ok=True,
+        mapped=("a", "b"),
+        skip=(),
+        last=None,
+    ):
         return model.plan_issues(
-            "e", "Pump", mapped, health, last or {}, existing, metadata_ok, self.TZ, skip
+            "e",
+            "Pump",
+            mapped,
+            health,
+            last or {},
+            existing,
+            metadata_ok,
+            self.TZ,
+            skip,
         )
 
     def test_create_and_delete(self):
@@ -506,9 +574,12 @@ class PlanTest(unittest.TestCase):
                 spec = self.plan({"a": health, "b": "ok"}, last={"a": last}).create[0]
                 stale = health == "stale"
                 self.assertEqual(
-                    spec.translation_key, model.STALE_NO_ROWS_KEY if stale and last is None else key
+                    spec.translation_key,
+                    model.STALE_NO_ROWS_KEY if stale and last is None else key,
                 )
-                expected = set(model.PLACEHOLDERS) | ({model.LAST_STATISTICS} if stale and last else set())
+                expected = set(model.PLACEHOLDERS) | (
+                    {model.LAST_STATISTICS} if stale and last else set()
+                )
                 self.assertEqual(set(spec.placeholders), expected, (health, last))
 
     def test_issue_key(self):

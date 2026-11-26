@@ -7,8 +7,6 @@ mapping, ``validate`` checks it against the statistics metadata that
 ``async_list_statistic_ids`` returns.
 """
 
-from __future__ import annotations
-
 import calendar
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -34,7 +32,10 @@ FIELD_DEFROST_HEAT = "defrost_heat"
 FIELD_UNIT = "unit"  # Cooling section only
 SERVICE_FIELDS = (FIELD_OUTPUT, FIELD_ELECTRICITY, FIELD_MEASURED_SINCE)
 COOLING_FIELDS = (*SERVICE_FIELDS, FIELD_UNIT)
-DEFROST_SERVICES = (SERVICE_HEATING, SERVICE_HOT_WATER)  # the sections with a defrost heat field
+DEFROST_SERVICES = (
+    SERVICE_HEATING,
+    SERVICE_HOT_WATER,
+)  # the sections with a defrost heat field
 
 # Cooling efficiency unit: W/W is the default and is not stored.
 UNIT_W_PER_W = "w_per_w"
@@ -64,7 +65,9 @@ ERROR_OUTPUT_MISSING = "output_missing"  # electricity without output
 ERROR_STATISTIC_MISSING = "statistic_missing"
 ERROR_STATISTIC_NOT_ENERGY = "statistic_not_energy"
 ERROR_STATISTIC_NO_SUM = "statistic_no_sum"
-ERROR_SEASON_INVALID_DAY = "season_invalid_day"  # a day not in its month, or 29 February
+ERROR_SEASON_INVALID_DAY = (
+    "season_invalid_day"  # a day not in its month, or 29 February
+)
 ERROR_SEASON_SAME_DAY = "season_same_day"  # a season's start equals its end
 ERROR_SEASON_MISSING = "season_missing"  # a season date with an empty month or day
 ERROR_DEFROST_DUPLICATE = "defrost_duplicate"  # a defrost statistic mapped twice or also as output or electricity
@@ -91,7 +94,7 @@ PLACEHOLDERS = {
     ERROR_DEFROST_DUPLICATE: "duplicate",
 }
 # Per section only the first applicable error is shown, in this order.
-_ERROR_PRIORITY = (
+ERROR_PRIORITY = (
     ERROR_STATISTIC_MISSING,
     ERROR_STATISTIC_NOT_ENERGY,
     ERROR_STATISTIC_NO_SUM,
@@ -125,7 +128,7 @@ def _int(value: Any) -> int | None:
         return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return int(number) if number == int(number) else None
 
@@ -156,7 +159,10 @@ def _seasons_from_input(data: Mapping[str, Any]) -> dict[str, str]:
     for date_key in SEASON_DATES:
         month_raw = data.get(date_key + SEASON_MONTH_SUFFIX)
         day_raw = data.get(date_key + SEASON_DAY_SUFFIX)
-        if date_key + SEASON_MONTH_SUFFIX not in data and date_key + SEASON_DAY_SUFFIX not in data:
+        if (
+            date_key + SEASON_MONTH_SUFFIX not in data
+            and date_key + SEASON_DAY_SUFFIX not in data
+        ):
             # An already stored ``MM-DD`` string (normalizing is idempotent).
             stored = data.get(date_key)
             parsed = _month_day(stored)
@@ -245,7 +251,9 @@ def with_defrost_moved(options: Mapping[str, Any]) -> dict[str, Any]:
     moved = [statistic_id for statistic_id in slot_ids if statistic_id not in mapped]
     if moved:
         heating = dict(merged.get(SERVICE_HEATING) or {})
-        heating[FIELD_DEFROST_HEAT] = _ids([*_ids(heating.get(FIELD_DEFROST_HEAT)), *moved])
+        heating[FIELD_DEFROST_HEAT] = _ids(
+            [*_ids(heating.get(FIELD_DEFROST_HEAT)), *moved]
+        )
         merged[SERVICE_HEATING] = heating
     if planned:
         merged[SECTION_PLANNED] = planned
@@ -337,7 +345,9 @@ def normalize_mapping(user_input: Mapping[str, Any]) -> dict[str, dict[str, Any]
         for key in (FIELD_OUTPUT, FIELD_ELECTRICITY):
             if ids := _ids(data.get(key)):
                 entry[key] = ids
-        defrost = _ids(data.get(FIELD_DEFROST_HEAT)) if service in DEFROST_SERVICES else []
+        defrost = (
+            _ids(data.get(FIELD_DEFROST_HEAT)) if service in DEFROST_SERVICES else []
+        )
         if not entry and not defrost:
             continue
         # A defrost statistic alone keeps the section but does not configure the service.
@@ -351,7 +361,9 @@ def normalize_mapping(user_input: Mapping[str, Any]) -> dict[str, dict[str, Any]
             entry[FIELD_DEFROST_HEAT] = defrost
         mapping[service] = entry
     if SECTION_SEASONS in user_input:  # a submitted (even emptied) section is checked
-        mapping[SECTION_SEASONS] = _seasons_from_input(user_input[SECTION_SEASONS] or {})
+        mapping[SECTION_SEASONS] = _seasons_from_input(
+            user_input[SECTION_SEASONS] or {}
+        )
     return mapping
 
 
@@ -431,11 +443,15 @@ def shared_outputs(
 def statistic_ids(mapping: Mapping[str, Any]) -> set[str]:
     """Return every output, electricity and defrost heat statistic ID of the mapping."""
     return _measured_ids(mapping) | {
-        statistic_id for service in DEFROST_SERVICES for statistic_id in defrost_ids(mapping, service)
+        statistic_id
+        for service in DEFROST_SERVICES
+        for statistic_id in defrost_ids(mapping, service)
     }
 
 
-def classify(statistic_id: str, metadata: Mapping[str, Mapping[str, Any]]) -> str | None:
+def classify(
+    statistic_id: str, metadata: Mapping[str, Mapping[str, Any]]
+) -> str | None:
     """Return the error for one statistic, or None when it is usable.
 
     ``metadata`` maps statistic ID to a dict from ``async_list_statistic_ids``.
@@ -514,9 +530,11 @@ def validate(
                 if statistic_id not in section_ids:
                     section_ids.append(statistic_id)
         # Nothing to correct: the service is not configured and Overall is not either.
-        if defrost and not {service, SERVICE_OVERALL} & set(configured_services(mapping)):
+        if defrost and not {service, SERVICE_OVERALL} & set(
+            configured_services(mapping)
+        ):
             found.add(ERROR_DEFROST_UNUSED)
-        for code in _ERROR_PRIORITY:
+        for code in ERROR_PRIORITY:
             if code in found:
                 errors[service] = code
                 break

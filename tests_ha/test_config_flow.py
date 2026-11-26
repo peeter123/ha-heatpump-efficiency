@@ -10,18 +10,24 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntryState
-from homeassistant.components.recorder.models import StatisticData, StatisticMeanType, StatisticMetaData
-from homeassistant.components.recorder.statistics import async_import_statistics
-from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
-from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.components.recorder.common import async_wait_recording_done
+from pytest_homeassistant_custom_component.components.recorder.common import (
+    async_wait_recording_done,
+)
 
 from custom_components.heatpump_efficiency import sensor_model
 from custom_components.heatpump_efficiency.const import DOMAIN
+from homeassistant import config_entries
+from homeassistant.components.recorder.models import (
+    StatisticData,
+    StatisticMeanType,
+    StatisticMetaData,
+)
+from homeassistant.components.recorder.statistics import async_import_statistics
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 NAME = "Test pump"
 
@@ -65,8 +71,13 @@ async def setup_entry(recorder_mock, hass):
     ``recorder_mock`` first to keep the order the conftest needs.
     """
     with (
-        patch("custom_components.heatpump_efficiency.async_setup_entry", return_value=True) as patched,
-        patch("custom_components.heatpump_efficiency.async_unload_entry", return_value=True),
+        patch(
+            "custom_components.heatpump_efficiency.async_setup_entry", return_value=True
+        ) as patched,
+        patch(
+            "custom_components.heatpump_efficiency.async_unload_entry",
+            return_value=True,
+        ),
     ):
         yield patched
         await hass.async_block_till_done()
@@ -76,7 +87,9 @@ async def setup_entry(recorder_mock, hass):
         await hass.async_block_till_done()
 
 
-def _add_statistic(hass, statistic_id, *, unit="kWh", unit_class="energy", has_sum=True):
+def _add_statistic(
+    hass, statistic_id, *, unit="kWh", unit_class="energy", has_sum=True
+):
     """Queue one hourly point of a synthetic statistic in the test recorder."""
     # recorder/models/statistics.py StatisticMetaData and recorder/statistics.py async_import_statistics
     # (Home Assistant 2026.10.4): the source of an entity ID statistic is "recorder"; a start on the hour.
@@ -89,7 +102,9 @@ def _add_statistic(hass, statistic_id, *, unit="kWh", unit_class="energy", has_s
         unit_class=unit_class,
         unit_of_measurement=unit,
     )
-    start = dt_util.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+    start = dt_util.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(
+        hours=1
+    )
     if has_sum:
         point = StatisticData(start=start, state=1.0, sum=1.0)
     else:
@@ -120,13 +135,17 @@ async def statistics(hass):
 
 def _add_entry(hass, options):
     """Add an existing entry with the given stored mapping (minor version 4, so no migration runs)."""
-    entry = MockConfigEntry(domain=DOMAIN, title=NAME, data={"name": NAME}, options=options, minor_version=4)
+    entry = MockConfigEntry(
+        domain=DOMAIN, title=NAME, data={"name": NAME}, options=options, minor_version=4
+    )
     entry.add_to_hass(hass)
     return entry
 
 
 async def _start_user(hass):
-    return await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    return await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
 
 
 async def _submit_user(hass, user_input):
@@ -141,7 +160,9 @@ async def _recover_user(hass, result):
     test fixes the cause and finishes the flow, to show the user can recover.
     """
     assert result["type"] is FlowResultType.FORM
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": NAME, "heating": HEATING})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": NAME, "heating": HEATING}
+    )
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == NAME
@@ -154,7 +175,9 @@ async def _recover_user(hass, result):
 async def _recover_options(hass, entry, result):
     """Fix the cause: submit a valid mapping on the same options flow and check the saved options."""
     assert result["type"] is FlowResultType.FORM
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"heating": HEATING})
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"heating": HEATING}
+    )
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {"heating": HEATING}
@@ -163,7 +186,9 @@ async def _recover_options(hass, entry, result):
 
 async def _submit_options(hass, entry, user_input):
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    return await hass.config_entries.options.async_configure(result["flow_id"], user_input)
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input
+    )
 
 
 # Section inputs that each end in one error key; shared by the user step and the options flow.
@@ -184,9 +209,15 @@ ERROR_CASES = [
         {"heating": "statistic_no_sum"},
         id="statistic_no_sum",
     ),
-    pytest.param({"heating": {"output": [HEATING_OUTPUT]}}, {"heating": "electricity_missing"}, id="electricity_missing"),
     pytest.param(
-        {"heating": {"electricity": [HEATING_ELECTRICITY]}}, {"heating": "output_missing"}, id="output_missing"
+        {"heating": {"output": [HEATING_OUTPUT]}},
+        {"heating": "electricity_missing"},
+        id="electricity_missing",
+    ),
+    pytest.param(
+        {"heating": {"electricity": [HEATING_ELECTRICITY]}},
+        {"heating": "output_missing"},
+        id="output_missing",
     ),
     pytest.param(
         {"heating": {**HEATING, "defrost_heat": [HEATING_OUTPUT]}},
@@ -199,17 +230,34 @@ ERROR_CASES = [
         id="defrost_unused",
     ),
     pytest.param(
-        {"heating": HEATING, "seasons": {"heating_start_month": "10", "heating_start_day": 1}},
+        {
+            "heating": HEATING,
+            "seasons": {"heating_start_month": "10", "heating_start_day": 1},
+        },
         {"seasons": "season_missing"},
         id="season_missing",
     ),
     pytest.param(
-        {"heating": HEATING, "seasons": {**SEASON_FIELDS, "heating_end_month": "4", "heating_end_day": 31}},
+        {
+            "heating": HEATING,
+            "seasons": {
+                **SEASON_FIELDS,
+                "heating_end_month": "4",
+                "heating_end_day": 31,
+            },
+        },
         {"seasons": "season_invalid_day"},
         id="season_invalid_day",
     ),
     pytest.param(
-        {"heating": HEATING, "seasons": {**SEASON_FIELDS, "heating_end_month": "10", "heating_end_day": 1}},
+        {
+            "heating": HEATING,
+            "seasons": {
+                **SEASON_FIELDS,
+                "heating_end_month": "10",
+                "heating_end_day": 1,
+            },
+        },
         {"seasons": "season_same_day"},
         id="season_same_day",
     ),
@@ -228,13 +276,19 @@ async def test_user_step_shows_the_form(hass):
     assert result["errors"] == {}
 
 
-async def test_user_step_creates_the_entry_with_the_normalized_mapping(hass, statistics, setup_entry):
+async def test_user_step_creates_the_entry_with_the_normalized_mapping(
+    hass, statistics, setup_entry
+):
     """A valid form creates the entry: the name as data, the mapping as options."""
     result = await _submit_user(
         hass,
         {
             "name": f"  {NAME}  ",
-            "heating": {**HEATING, "measured_since": "2026-01-01", "defrost_heat": [DEFROST_HEAT]},
+            "heating": {
+                **HEATING,
+                "measured_since": "2026-01-01",
+                "defrost_heat": [DEFROST_HEAT],
+            },
             "cooling": COOLING_BTU,
             "overall": OVERALL,
             "seasons": SEASON_FIELDS,
@@ -243,7 +297,11 @@ async def test_user_step_creates_the_entry_with_the_normalized_mapping(hass, sta
     await hass.async_block_till_done()
 
     expected = {
-        "heating": {**HEATING, "measured_since": "2026-01-01", "defrost_heat": [DEFROST_HEAT]},
+        "heating": {
+            **HEATING,
+            "measured_since": "2026-01-01",
+            "defrost_heat": [DEFROST_HEAT],
+        },
         "cooling": COOLING_BTU,
         "overall": OVERALL,
         "seasons": {
@@ -263,7 +321,9 @@ async def test_user_step_creates_the_entry_with_the_normalized_mapping(hass, sta
 
 
 @pytest.mark.parametrize(("sections", "errors"), ERROR_CASES)
-async def test_user_step_shows_each_validation_error(hass, statistics, setup_entry, sections, errors):
+async def test_user_step_shows_each_validation_error(
+    hass, statistics, setup_entry, sections, errors
+):
     """Each rule of the pure validation ends in the form again, with its error key."""
     result = await _submit_user(hass, {"name": NAME, **sections})
 
@@ -290,7 +350,11 @@ async def test_user_step_requires_a_name(hass, statistics):
 async def test_user_step_names_the_missing_statistic(hass, statistics):
     """The error text gets the failing statistic, labelled with its section."""
     result = await _submit_user(
-        hass, {"name": NAME, "heating": {"output": [MISSING], "electricity": [HEATING_ELECTRICITY]}}
+        hass,
+        {
+            "name": NAME,
+            "heating": {"output": [MISSING], "electricity": [HEATING_ELECTRICITY]},
+        },
     )
 
     assert result["errors"] == {"heating": "statistic_missing"}
@@ -316,14 +380,19 @@ async def test_user_step_adds_a_second_heat_pump_with_its_own_outputs(hass, stat
     assert len(hass.config_entries.async_entries(DOMAIN)) == 2
 
 
-async def test_user_step_accepts_overall_reusing_its_own_heating_output(hass, statistics):
+async def test_user_step_accepts_overall_reusing_its_own_heating_output(
+    hass, statistics
+):
     """An output shared between sections of the same new entry is not a duplicate."""
     result = await _submit_user(
         hass,
         {
             "name": NAME,
             "heating": HEATING,
-            "overall": {"output": [HEATING_OUTPUT], "electricity": [OVERALL_ELECTRICITY]},
+            "overall": {
+                "output": [HEATING_OUTPUT],
+                "electricity": [OVERALL_ELECTRICITY],
+            },
         },
     )
     await hass.async_block_till_done()
@@ -331,7 +400,9 @@ async def test_user_step_accepts_overall_reusing_its_own_heating_output(hass, st
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
-async def test_user_step_aborts_when_another_entry_uses_an_output(hass, statistics, setup_entry):
+async def test_user_step_aborts_when_another_entry_uses_an_output(
+    hass, statistics, setup_entry
+):
     """An output statistic of another entry ends the setup as already configured, naming it."""
     _add_entry(hass, {"heating": HEATING})
 
@@ -339,7 +410,10 @@ async def test_user_step_aborts_when_another_entry_uses_an_output(hass, statisti
         hass,
         {
             "name": "Second pump",
-            "overall": {"output": [OTHER_OUTPUT, HEATING_OUTPUT], "electricity": [OTHER_ELECTRICITY]},
+            "overall": {
+                "output": [OTHER_OUTPUT, HEATING_OUTPUT],
+                "electricity": [OTHER_ELECTRICITY],
+            },
         },
     )
 
@@ -366,7 +440,9 @@ async def test_user_step_abort_names_every_shared_statistic_sorted(hass, statist
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
-    assert result["description_placeholders"] == {"statistics": f"{COOLING_OUTPUT}, {HEATING_OUTPUT}"}
+    assert result["description_placeholders"] == {
+        "statistics": f"{COOLING_OUTPUT}, {HEATING_OUTPUT}"
+    }
 
 
 # --- options flow ------------------------------------------------------------------------------------------
@@ -393,18 +469,25 @@ async def test_options_flow_saves_the_new_mapping(hass, statistics):
     entry = _add_entry(hass, {"heating": HEATING})
 
     result = await _submit_options(
-        hass, entry, {"heating": HEATING, "overall": {**OVERALL, "measured_since": "2026-02-01"}}
+        hass,
+        entry,
+        {"heating": HEATING, "overall": {**OVERALL, "measured_since": "2026-02-01"}},
     )
     await hass.async_block_till_done()
 
-    expected = {"heating": HEATING, "overall": {**OVERALL, "measured_since": "2026-02-01"}}
+    expected = {
+        "heating": HEATING,
+        "overall": {**OVERALL, "measured_since": "2026-02-01"},
+    }
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == expected
     assert dict(entry.options) == expected
 
 
 @pytest.mark.parametrize(("sections", "errors"), ERROR_CASES)
-async def test_options_flow_shows_each_validation_error(hass, statistics, sections, errors):
+async def test_options_flow_shows_each_validation_error(
+    hass, statistics, sections, errors
+):
     """Each rule of the pure validation ends in the form again, and the stored options stay."""
     entry = _add_entry(hass, {"heating": HEATING})
 
@@ -423,7 +506,9 @@ async def test_options_flow_names_the_missing_statistic(hass, statistics):
     entry = _add_entry(hass, {"heating": HEATING})
 
     result = await _submit_options(
-        hass, entry, {"heating": {"output": [MISSING], "electricity": [HEATING_ELECTRICITY]}}
+        hass,
+        entry,
+        {"heating": {"output": [MISSING], "electricity": [HEATING_ELECTRICITY]}},
     )
 
     assert result["description_placeholders"]["missing"] == f"heating: {MISSING}"
@@ -434,23 +519,34 @@ async def test_options_flow_names_the_missing_statistic(hass, statistics):
 async def test_options_flow_does_not_check_for_duplicates(hass, statistics):
     """Only the setup refuses a shared output; the options flow keeps accepting it (design D3)."""
     entry = _add_entry(hass, {"heating": HEATING})
-    _add_entry(hass, {"overall": {"output": [OTHER_OUTPUT], "electricity": [OTHER_ELECTRICITY]}})
+    _add_entry(
+        hass,
+        {"overall": {"output": [OTHER_OUTPUT], "electricity": [OTHER_ELECTRICITY]}},
+    )
 
-    result = await _submit_options(hass, entry, {"heating": {**HEATING, "output": [OTHER_OUTPUT]}})
+    result = await _submit_options(
+        hass, entry, {"heating": {**HEATING, "output": [OTHER_OUTPUT]}}
+    )
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
-async def test_options_flow_saves_a_cooling_change_without_warning_when_the_unit_is_unchanged(hass, statistics):
+async def test_options_flow_saves_a_cooling_change_without_warning_when_the_unit_is_unchanged(
+    hass, statistics
+):
     """Changing something other than the Cooling unit never queries or warns."""
     entry = _add_entry(hass, {"cooling": COOLING_BTU})
 
-    result = await _submit_options(hass, entry, {"cooling": {**COOLING_BTU, "measured_since": "2026-03-01"}})
+    result = await _submit_options(
+        hass, entry, {"cooling": {**COOLING_BTU, "measured_since": "2026-03-01"}}
+    )
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert dict(entry.options) == {"cooling": {**COOLING_BTU, "measured_since": "2026-03-01"}}
+    assert dict(entry.options) == {
+        "cooling": {**COOLING_BTU, "measured_since": "2026-03-01"}
+    }
 
 
 def _register_cooling_sensors(hass, entry, count):
@@ -459,13 +555,19 @@ def _register_cooling_sensors(hass, entry, count):
     unique_ids = sensor_model.service_unique_ids(entry.entry_id, "cooling")
     return [
         registry.async_get_or_create(
-            "sensor", DOMAIN, unique_id, config_entry=entry, suggested_object_id=f"test_cooling_{index}"
+            "sensor",
+            DOMAIN,
+            unique_id,
+            config_entry=entry,
+            suggested_object_id=f"test_cooling_{index}",
         ).entity_id
         for index, unique_id in enumerate(unique_ids[:count])
     ]
 
 
-async def test_options_flow_unit_change_without_registered_sensors_saves_directly(hass, statistics):
+async def test_options_flow_unit_change_without_registered_sensors_saves_directly(
+    hass, statistics
+):
     """No Cooling sensor in the entity registry: nothing to warn about."""
     entry = _add_entry(hass, {"cooling": COOLING})
 
@@ -476,7 +578,9 @@ async def test_options_flow_unit_change_without_registered_sensors_saves_directl
     assert dict(entry.options) == {"cooling": COOLING_BTU}
 
 
-async def test_options_flow_unit_change_without_stored_statistics_saves_directly(hass, statistics):
+async def test_options_flow_unit_change_without_stored_statistics_saves_directly(
+    hass, statistics
+):
     """Registered Cooling sensors that have no long-term statistics yet do not warn."""
     entry = _add_entry(hass, {"cooling": COOLING})
     _register_cooling_sensors(hass, entry, 2)
@@ -488,7 +592,9 @@ async def test_options_flow_unit_change_without_stored_statistics_saves_directly
     assert dict(entry.options) == {"cooling": COOLING_BTU}
 
 
-async def test_options_flow_unit_change_with_statistics_warns_then_saves_on_confirmation(hass, statistics):
+async def test_options_flow_unit_change_with_statistics_warns_then_saves_on_confirmation(
+    hass, statistics
+):
     """Stored Cooling statistics make the unit change ask first; submitting the step stores it."""
     entry = _add_entry(hass, {"cooling": COOLING})
     with_statistics, _ = _register_cooling_sensors(hass, entry, 2)
@@ -496,12 +602,16 @@ async def test_options_flow_unit_change_with_statistics_warns_then_saves_on_conf
     await async_wait_recording_done(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"cooling": COOLING_BTU})
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"cooling": COOLING_BTU}
+    )
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "unit_change"
     assert result["description_placeholders"] == {"sensors": with_statistics}
-    assert dict(entry.options) == {"cooling": COOLING}  # nothing stored before the confirmation
+    assert dict(entry.options) == {
+        "cooling": COOLING
+    }  # nothing stored before the confirmation
 
     result = await hass.config_entries.options.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
@@ -511,7 +621,9 @@ async def test_options_flow_unit_change_with_statistics_warns_then_saves_on_conf
     assert dict(entry.options) == {"cooling": COOLING_BTU}
 
 
-async def test_options_flow_unit_change_names_every_sensor_with_statistics(hass, statistics):
+async def test_options_flow_unit_change_names_every_sensor_with_statistics(
+    hass, statistics
+):
     """The warning lists all affected Cooling sensors, sorted, separated by commas."""
     entry = _add_entry(hass, {"cooling": COOLING_BTU})
     sensors = _register_cooling_sensors(hass, entry, 2)

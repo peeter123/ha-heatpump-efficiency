@@ -2,22 +2,23 @@
 
 The package is registered as a bare module with the package path, so
 ``seasons.py`` can import its pure sibling ``efficiency.py`` without Home
-Assistant. Time zone tests use zoneinfo (on Windows: ``pip install tzdata``).
+Assistant. Time zone tests use zoneinfo (tzdata comes from the lint environment, scripts/lint.py).
 """
 
-from __future__ import annotations
-
 import ast
+from datetime import UTC, date, datetime, timedelta
 import importlib
+from itertools import pairwise
+from pathlib import Path
 import random
 import sys
 import types
 import unittest
-from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-PACKAGE = Path(__file__).resolve().parents[1] / "custom_components" / "heatpump_efficiency"
+PACKAGE = (
+    Path(__file__).resolve().parents[1] / "custom_components" / "heatpump_efficiency"
+)
 _pkg = types.ModuleType("hpe_seasons_pkg")
 _pkg.__path__ = [str(PACKAGE)]
 sys.modules["hpe_seasons_pkg"] = _pkg
@@ -27,7 +28,6 @@ seasons = importlib.import_module("hpe_seasons_pkg.seasons")
 TZ = ZoneInfo("Europe/Amsterdam")
 KOLKATA = ZoneInfo("Asia/Kolkata")
 SANTIAGO = ZoneInfo("America/Santiago")
-UTC = timezone.utc
 
 NORTH = seasons.default_seasons(52.0)
 HEAT = (NORTH["heating_start"], NORTH["heating_end"])
@@ -77,7 +77,9 @@ def reduce_rows(rows, tz, key):
         first_day = key_start(group_key, first_day)
         out.append(
             {
-                "start": datetime(first_day.year, first_day.month, first_day.day, tzinfo=tz).timestamp(),
+                "start": datetime(
+                    first_day.year, first_day.month, first_day.day, tzinfo=tz
+                ).timestamp(),
                 "change": group[-1]["sum"] - previous,
             }
         )
@@ -87,14 +89,23 @@ def reduce_rows(rows, tz, key):
 
 def key_start(group_key, first_day):
     """The first day of a group: the day itself, or the 1st for a (year, month) key."""
-    return first_day if isinstance(group_key, date) else date(group_key[0], group_key[1], 1)
+    return (
+        first_day
+        if isinstance(group_key, date)
+        else date(group_key[0], group_key[1], 1)
+    )
 
 
 class DefaultsTests(unittest.TestCase):
     def test_northern(self):
         self.assertEqual(
             seasons.default_seasons(52.0),
-            {"heating_start": "10-01", "heating_end": "04-30", "cooling_start": "06-01", "cooling_end": "09-30"},
+            {
+                "heating_start": "10-01",
+                "heating_end": "04-30",
+                "cooling_start": "06-01",
+                "cooling_end": "09-30",
+            },
         )
 
     def test_unset_latitude_is_northern(self):
@@ -103,7 +114,12 @@ class DefaultsTests(unittest.TestCase):
     def test_southern(self):
         self.assertEqual(
             seasons.default_seasons(-33.9),
-            {"heating_start": "04-01", "heating_end": "10-31", "cooling_start": "12-01", "cooling_end": "02-28"},
+            {
+                "heating_start": "04-01",
+                "heating_end": "10-31",
+                "cooling_start": "12-01",
+                "cooling_end": "02-28",
+            },
         )
 
 
@@ -189,10 +205,16 @@ class SeasonsSinceTests(unittest.TestCase):
         self.assertFalse(info.complete)
 
     def test_no_season_has_begun(self):
-        self.assertEqual(since(COOL, local(2026, 11, 13, 14), local(2027, 3, 15, 12)), [])
-        self.assertEqual(seasons.seasons_since("06-01", "09-30", None, local(2027, 3, 15), TZ), [])
+        self.assertEqual(
+            since(COOL, local(2026, 11, 13, 14), local(2027, 3, 15, 12)), []
+        )
+        self.assertEqual(
+            seasons.seasons_since("06-01", "09-30", None, local(2027, 3, 15), TZ), []
+        )
         # the season starts the day after "now": not begun
-        self.assertEqual(since(COOL, local(2026, 11, 13, 14), local(2027, 5, 31, 23, 59)), [])
+        self.assertEqual(
+            since(COOL, local(2026, 11, 13, 14), local(2027, 5, 31, 23, 59)), []
+        )
         begun = since(COOL, local(2026, 11, 13, 14), local(2027, 6, 1, 0, 1))
         self.assertEqual(len(begun), 1)
         self.assertFalse(begun[0].ended)
@@ -214,14 +236,21 @@ class SeasonsSinceTests(unittest.TestCase):
         infos = since(HEAT, local(2023, 9, 1), local(2027, 1, 15))
         self.assertEqual(
             [i.season.start_day for i in infos],
-            [date(2023, 10, 1), date(2024, 10, 1), date(2025, 10, 1), date(2026, 10, 1)],
+            [
+                date(2023, 10, 1),
+                date(2024, 10, 1),
+                date(2025, 10, 1),
+                date(2026, 10, 1),
+            ],
         )
         self.assertEqual([i.ended for i in infos], [True, True, True, False])
         self.assertTrue(all(i.complete for i in infos))
 
     def test_history_starting_inside_a_season_keeps_that_season(self):
         infos = since(HEAT, local(2024, 1, 10, 3), local(2025, 1, 15))
-        self.assertEqual([i.season.start_day for i in infos], [date(2023, 10, 1), date(2024, 10, 1)])
+        self.assertEqual(
+            [i.season.start_day for i in infos], [date(2023, 10, 1), date(2024, 10, 1)]
+        )
         self.assertFalse(infos[0].complete)
         self.assertEqual(infos[0].covered_start, local(2024, 1, 11))
 
@@ -244,7 +273,11 @@ class SeasonsSinceTests(unittest.TestCase):
     def test_southern_cooling_across_a_leap_february(self):
         south = seasons.default_seasons(-33.9)
         infos = seasons.seasons_since(
-            south["cooling_start"], south["cooling_end"], effective_of(local(2027, 11, 1)), local(2028, 3, 15), TZ
+            south["cooling_start"],
+            south["cooling_end"],
+            effective_of(local(2027, 11, 1)),
+            local(2028, 3, 15),
+            TZ,
         )
         self.assertEqual(len(infos), 1)
         self.assertEqual(infos[0].season.end_day, date(2028, 2, 29))
@@ -252,9 +285,13 @@ class SeasonsSinceTests(unittest.TestCase):
 
     def test_naive_datetimes_are_rejected(self):
         with self.assertRaises(ValueError):
-            seasons.seasons_since("10-01", "04-30", local(2026, 1, 1), datetime(2027, 1, 1), TZ)
+            seasons.seasons_since(
+                "10-01", "04-30", local(2026, 1, 1), datetime(2027, 1, 1), TZ
+            )
         with self.assertRaises(ValueError):
-            seasons.seasons_since("10-01", "04-30", datetime(2026, 1, 1), local(2027, 1, 1), TZ)
+            seasons.seasons_since(
+                "10-01", "04-30", datetime(2026, 1, 1), local(2027, 1, 1), TZ
+            )
 
 
 class RunningRangesTests(unittest.TestCase):
@@ -265,7 +302,7 @@ class RunningRangesTests(unittest.TestCase):
         self.assertEqual(ranges[0].start, local(2026, 10, 1))
         self.assertEqual(ranges[-1].end, now)
         self.assertEqual(ranges[-1].source, "5minute")
-        for a, b in zip(ranges, ranges[1:]):
+        for a, b in pairwise(ranges):
             self.assertEqual(a.end, b.start)
         self.assertIn("month", [r.source for r in ranges])
 
@@ -290,7 +327,10 @@ class RunningRangesTests(unittest.TestCase):
             True,
             False,
         )
-        self.assertEqual(seasons.running_ranges(info, now, TZ), eff.period_ranges(now, TZ, effective)["year_to_date"])
+        self.assertEqual(
+            seasons.running_ranges(info, now, TZ),
+            eff.period_ranges(now, TZ, effective)["year_to_date"],
+        )
 
     def test_hourly_and_coverage_end(self):
         now = local(2027, 1, 15, 12)
@@ -300,7 +340,9 @@ class RunningRangesTests(unittest.TestCase):
         self.assertEqual(ranges[-1].source, "hour")
         self.assertEqual(ranges[-1].end, end)
         # coverage end before today's start: unknown
-        self.assertIsNone(seasons.running_ranges(info, now, TZ, local(2027, 1, 14, 20), hourly=False))
+        self.assertIsNone(
+            seasons.running_ranges(info, now, TZ, local(2027, 1, 14, 20), hourly=False)
+        )
 
     def test_ended_season_has_no_running_ranges(self):
         now = local(2027, 7, 15, 12)
@@ -321,30 +363,58 @@ class BoundaryReadingTests(unittest.TestCase):
     def test_newest_row_before_the_boundary(self):
         last_end = (self.B + timedelta(hours=5)).timestamp()
         first = (self.B - timedelta(days=100)).timestamp()
-        self.assertEqual(seasons.boundary_reading(self.rows(), first, last_end, self.B), 12.5)
+        self.assertEqual(
+            seasons.boundary_reading(self.rows(), first, last_end, self.B), 12.5
+        )
 
     def test_row_starting_at_the_boundary_is_not_before_it(self):
-        rows = self.rows() + [{"start": self.B.timestamp(), "sum": 99.0}]
+        rows = [*self.rows(), {"start": self.B.timestamp(), "sum": 99.0}]
         last_end = (self.B + timedelta(hours=5)).timestamp()
-        self.assertEqual(seasons.boundary_reading(rows, self.B - timedelta(days=9), last_end, self.B), 12.5)
+        self.assertEqual(
+            seasons.boundary_reading(
+                rows, self.B - timedelta(days=9), last_end, self.B
+            ),
+            12.5,
+        )
 
     def test_zero_when_the_first_hour_is_at_or_after_the_boundary(self):
         last_end = (self.B + timedelta(hours=5)).timestamp()
         self.assertEqual(seasons.boundary_reading([], self.B, last_end, self.B), 0.0)
-        self.assertEqual(seasons.boundary_reading(None, self.B + timedelta(days=3), last_end, self.B), 0.0)
+        self.assertEqual(
+            seasons.boundary_reading(
+                None, self.B + timedelta(days=3), last_end, self.B
+            ),
+            0.0,
+        )
 
     def test_baseline_when_the_first_hour_is_at_or_after_the_boundary(self):
         last_end = (self.B + timedelta(hours=5)).timestamp()
-        self.assertEqual(seasons.boundary_reading([], self.B, last_end, self.B, 500.0), 500.0)
-        self.assertEqual(seasons.boundary_reading(None, self.B + timedelta(days=3), last_end, self.B, 500.0), 500.0)
-        self.assertEqual(seasons.boundary_reading(None, self.B + timedelta(days=3), last_end, self.B, None), 0.0)
+        self.assertEqual(
+            seasons.boundary_reading([], self.B, last_end, self.B, 500.0), 500.0
+        )
+        self.assertEqual(
+            seasons.boundary_reading(
+                None, self.B + timedelta(days=3), last_end, self.B, 500.0
+            ),
+            500.0,
+        )
+        self.assertEqual(
+            seasons.boundary_reading(
+                None, self.B + timedelta(days=3), last_end, self.B, None
+            ),
+            0.0,
+        )
 
     def test_baseline_is_ignored_when_the_first_hour_is_before_the_boundary(self):
         last_end = (self.B + timedelta(hours=5)).timestamp()
         first = (self.B - timedelta(days=100)).timestamp()
-        self.assertEqual(seasons.boundary_reading(self.rows(), first, last_end, self.B, 500.0), 12.5)
+        self.assertEqual(
+            seasons.boundary_reading(self.rows(), first, last_end, self.B, 500.0), 12.5
+        )
         # Not covered stays unknown whatever the baseline.
-        self.assertIsNone(seasons.boundary_reading(self.rows(), first, None, self.B, 500.0))
+        self.assertIsNone(
+            seasons.boundary_reading(self.rows(), first, None, self.B, 500.0)
+        )
 
     def test_none_when_not_covered(self):
         first = self.B - timedelta(days=100)
@@ -374,7 +444,11 @@ class SeasonEnergyTests(unittest.TestCase):
         self.assertAlmostEqual(seasons.season_energy(start, end, ["a", "b"]), 7.5)
 
     def test_none_when_a_reading_is_missing(self):
-        self.assertIsNone(seasons.season_energy({"a": 1.0, "b": None}, {"a": 2.0, "b": 3.0}, ["a", "b"]))
+        self.assertIsNone(
+            seasons.season_energy(
+                {"a": 1.0, "b": None}, {"a": 2.0, "b": 3.0}, ["a", "b"]
+            )
+        )
         self.assertIsNone(seasons.season_energy({"a": 1.0}, {"a": 2.0}, ["a", "b"]))
         self.assertIsNone(seasons.season_energy({}, {}, []))
 
@@ -400,7 +474,9 @@ class SeasonEnergyTests(unittest.TestCase):
         start_b, end_b = seasons.boundary_instants(info)
         start_r = {"x": seasons.boundary_reading(rows, first_hour, last_end, start_b)}
         end_r = {"x": seasons.boundary_reading(rows, first_hour, last_end, end_b)}
-        self.assertAlmostEqual(seasons.season_energy(start_r, end_r, ["x"]), expected, places=6)
+        self.assertAlmostEqual(
+            seasons.season_energy(start_r, end_r, ["x"]), expected, places=6
+        )
 
     def check_equals_period_energy(self, tz, first_hour, gap):
         """Boundary-reading season energy equals ``period_energy`` of the day and month rows."""
@@ -408,18 +484,31 @@ class SeasonEnergyTests(unittest.TestCase):
         rows = [r for i, r in enumerate(rows) if not (gap[0] <= i < gap[1])]
         info = since(HEAT, first_hour, first_hour + timedelta(days=270), tz)[0]
         self.assertTrue(info.ended)
-        window = eff.Window(datetime(2000, 1, 1, tzinfo=UTC), datetime(2100, 1, 1, tzinfo=UTC))
+        window = eff.Window(
+            datetime(2000, 1, 1, tzinfo=UTC), datetime(2100, 1, 1, tzinfo=UTC)
+        )
         ids = frozenset({"x"})
         tables = {
-            "day": eff.TableRead("day", window, {"x": reduce_rows(rows, tz, lambda d: d)}, ids),
-            "month": eff.TableRead("month", window, {"x": reduce_rows(rows, tz, lambda d: (d.year, d.month))}, ids),
+            "day": eff.TableRead(
+                "day", window, {"x": reduce_rows(rows, tz, lambda d: d)}, ids
+            ),
+            "month": eff.TableRead(
+                "month",
+                window,
+                {"x": reduce_rows(rows, tz, lambda d: (d.year, d.month))},
+                ids,
+            ),
         }
-        ranges = eff.cover(info.season.start_day, info.season.end_day + timedelta(days=1), tz)
+        ranges = eff.cover(
+            info.season.start_day, info.season.end_day + timedelta(days=1), tz
+        )
         self.assertIn("month", [r.source for r in ranges])
         expected = eff.period_energy(tables, ["x"], ranges)
         last_end = rows[-1]["start"] + 3600
         start_b, end_b = seasons.boundary_instants(info)
-        start_r = {"x": seasons.boundary_reading(rows, rows[0]["start"], last_end, start_b)}
+        start_r = {
+            "x": seasons.boundary_reading(rows, rows[0]["start"], last_end, start_b)
+        }
         end_r = {"x": seasons.boundary_reading(rows, rows[0]["start"], last_end, end_b)}
         return start_r, end_r, expected, info
 
@@ -430,19 +519,32 @@ class SeasonEnergyTests(unittest.TestCase):
         ):
             with self.subTest(tz=str(tz)):
                 # a gap of 30 hours in January (hours 2700 to 2730 of the history)
-                start_r, end_r, expected, info = self.check_equals_period_energy(tz, first_hour, (2700, 2730))
+                start_r, end_r, expected, info = self.check_equals_period_energy(
+                    tz, first_hour, (2700, 2730)
+                )
                 self.assertEqual(info.covered_start, first_hour.astimezone(UTC))
                 self.assertEqual(start_r["x"], 0.0)
-                self.assertAlmostEqual(seasons.season_energy(start_r, end_r, ["x"]), expected, places=6)
+                self.assertAlmostEqual(
+                    seasons.season_energy(start_r, end_r, ["x"]), expected, places=6
+                )
 
     def test_first_hour_before_the_season_with_a_gap(self):
-        for tz, first_hour in ((TZ, local(2026, 9, 20, 5)), (KOLKATA, local(2026, 9, 20, 5, 30, KOLKATA))):
+        for tz, first_hour in (
+            (TZ, local(2026, 9, 20, 5)),
+            (KOLKATA, local(2026, 9, 20, 5, 30, KOLKATA)),
+        ):
             with self.subTest(tz=str(tz)):
-                start_r, end_r, expected, _ = self.check_equals_period_energy(tz, first_hour, (1500, 1507))
+                start_r, end_r, expected, _ = self.check_equals_period_energy(
+                    tz, first_hour, (1500, 1507)
+                )
                 self.assertGreater(start_r["x"], 0.0)
-                self.assertAlmostEqual(seasons.season_energy(start_r, end_r, ["x"]), expected, places=6)
+                self.assertAlmostEqual(
+                    seasons.season_energy(start_r, end_r, ["x"]), expected, places=6
+                )
 
-    def test_season_starting_after_the_first_hour_reads_the_sum_before_the_covered_start(self):
+    def test_season_starting_after_the_first_hour_reads_the_sum_before_the_covered_start(
+        self,
+    ):
         first = local(2026, 11, 13, 14)
         rows = hourly_rows(first, 24 * 200)
         info = since(HEAT, first, local(2027, 6, 20))[0]
@@ -482,7 +584,16 @@ class SeasonPointTests(unittest.TestCase):
         self.assertFalse(point["estimated"])
         self.assertEqual(
             set(point),
-            {"start", "end", "efficiency", "output_energy", "electrical_energy", "estimated", "complete", "ended"},
+            {
+                "start",
+                "end",
+                "efficiency",
+                "output_energy",
+                "electrical_energy",
+                "estimated",
+                "complete",
+                "ended",
+            },
         )
 
     def test_unknown_season_keeps_its_point(self):
@@ -498,15 +609,24 @@ class SeasonPointTests(unittest.TestCase):
 
     def test_estimated_before_measured_since(self):
         infos = since(HEAT, local(2024, 9, 1), local(2027, 1, 15))
-        points = seasons.season_points(infos, [(1.0, 1.0)] * len(infos), date(2026, 11, 13), TZ)
-        self.assertEqual([p["start"][:10] for p in points], ["2024-10-01", "2025-10-01", "2026-10-01"])
+        points = seasons.season_points(
+            infos, [(1.0, 1.0)] * len(infos), date(2026, 11, 13), TZ
+        )
+        self.assertEqual(
+            [p["start"][:10] for p in points],
+            ["2024-10-01", "2025-10-01", "2026-10-01"],
+        )
         self.assertEqual([p["estimated"] for p in points], [True, True, True])
-        later = seasons.season_points(infos, [(1.0, 1.0)] * len(infos), date(2026, 10, 1), TZ)
+        later = seasons.season_points(
+            infos, [(1.0, 1.0)] * len(infos), date(2026, 10, 1), TZ
+        )
         self.assertEqual([p["estimated"] for p in later], [True, True, False])
 
     def test_cooling_unit_factor(self):
         infos = since(COOL, local(2025, 1, 1), local(2027, 1, 15))
-        (point, *_) = seasons.season_points(infos, [(470.0, 100.0)] * len(infos), None, TZ, eff.BTU_PER_WH)
+        (point, *_) = seasons.season_points(
+            infos, [(470.0, 100.0)] * len(infos), None, TZ, eff.BTU_PER_WH
+        )
         self.assertEqual(point["efficiency"], 16.04)
         self.assertEqual(point["output_energy"], 470.0)
 
@@ -518,15 +638,22 @@ class SeasonPointTests(unittest.TestCase):
     def test_defrost_length_mismatch_is_an_error(self):
         infos = since(HEAT, local(2025, 9, 1), local(2027, 7, 15))
         with self.assertRaises(ValueError):
-            seasons.season_points(infos, [(1.0, 1.0)] * len(infos), None, TZ, defrost=[])
+            seasons.season_points(
+                infos, [(1.0, 1.0)] * len(infos), None, TZ, defrost=[]
+            )
 
     def test_points_unchanged_without_defrost(self):
         infos = since(HEAT, local(2025, 9, 1), local(2026, 12, 5))
         energies = [(9000.0, 2500.0)] * len(infos)
         plain = seasons.season_points(infos, energies, None, TZ)
-        self.assertEqual(seasons.season_points(infos, energies, None, TZ, defrost=None), plain)
         self.assertEqual(
-            seasons.season_points(infos, energies, None, TZ, defrost_start=local(2026, 11, 18, 10)), plain
+            seasons.season_points(infos, energies, None, TZ, defrost=None), plain
+        )
+        self.assertEqual(
+            seasons.season_points(
+                infos, energies, None, TZ, defrost_start=local(2026, 11, 18, 10)
+            ),
+            plain,
         )
         for point in plain:
             self.assertNotIn("defrost_energy", point)
@@ -535,21 +662,30 @@ class SeasonPointTests(unittest.TestCase):
     def test_seasons_around_the_defrost_counter_start(self):
         # Seasons from 1 October 2025 and 1 October 2026; the defrost statistic starts on 18 November 2026.
         infos = since(HEAT, local(2025, 9, 1), local(2026, 12, 5))
-        self.assertEqual([i.season.start_day for i in infos], [date(2025, 10, 1), date(2026, 10, 1)])
+        self.assertEqual(
+            [i.season.start_day for i in infos], [date(2025, 10, 1), date(2026, 10, 1)]
+        )
         # Finished season: the readings at its boundaries are 0.0 because the counter's first hour is
         # at or after both; running season: the defrost heat since 18 November 2026.
         first_hour = local(2026, 11, 18, 10)
         last_end = local(2026, 12, 5).timestamp()
         start_b, end_b = seasons.boundary_instants(infos[0])
         readings = {
-            "start": {"d": seasons.boundary_reading(None, first_hour, last_end, start_b)},
+            "start": {
+                "d": seasons.boundary_reading(None, first_hour, last_end, start_b)
+            },
             "end": {"d": seasons.boundary_reading(None, first_hour, last_end, end_b)},
         }
         self.assertEqual(readings, {"start": {"d": 0.0}, "end": {"d": 0.0}})
         finished = seasons.season_energy(readings["start"], readings["end"], ["d"])
         energies = [(9000.0, 2500.0), (3000.0, 750.0)]
         points = seasons.season_points(
-            infos, energies, None, TZ, defrost=[finished, 100.0], defrost_start=local(2026, 11, 18, 10)
+            infos,
+            energies,
+            None,
+            TZ,
+            defrost=[finished, 100.0],
+            defrost_start=local(2026, 11, 18, 10),
         )
         first, second = points
         self.assertTrue(first["defrost_partial"])
@@ -574,13 +710,21 @@ class SeasonPointTests(unittest.TestCase):
             {"start": first_hour.timestamp(), "sum": 500.0},
             {"start": (end_b - timedelta(hours=1)).timestamp(), "sum": 520.0},
         ]
-        start_r = {"d": seasons.boundary_reading(rows, first_hour, last_end, start_b, 500.0)}
-        end_r = {"d": seasons.boundary_reading(rows, first_hour, last_end, end_b, 500.0)}
+        start_r = {
+            "d": seasons.boundary_reading(rows, first_hour, last_end, start_b, 500.0)
+        }
+        end_r = {
+            "d": seasons.boundary_reading(rows, first_hour, last_end, end_b, 500.0)
+        }
         self.assertEqual((start_r, end_r), ({"d": 500.0}, {"d": 520.0}))
         defrost = seasons.season_energy(start_r, end_r, ["d"])
         self.assertEqual(defrost, 20.0)
         (point, *_) = seasons.season_points(
-            infos, [(900.0, 250.0)] * len(infos), None, TZ, defrost=[defrost] * len(infos),
+            infos,
+            [(900.0, 250.0)] * len(infos),
+            None,
+            TZ,
+            defrost=[defrost] * len(infos),
             defrost_start=first_hour + timedelta(hours=1),
         )
         self.assertEqual(point["defrost_energy"], 20.0)
@@ -590,14 +734,21 @@ class SeasonPointTests(unittest.TestCase):
     def test_season_after_the_defrost_start_is_not_partial(self):
         infos = since(HEAT, local(2026, 12, 1), local(2026, 12, 5))
         (point,) = seasons.season_points(
-            infos, [(100.0, 25.0)], None, TZ, defrost=[5.0], defrost_start=local(2026, 11, 18, 10)
+            infos,
+            [(100.0, 25.0)],
+            None,
+            TZ,
+            defrost=[5.0],
+            defrost_start=local(2026, 11, 18, 10),
         )
         self.assertFalse(point["defrost_partial"])
         self.assertEqual(point["efficiency"], 3.80)
 
     def test_defrost_energy_is_rounded_to_three_decimals(self):
         infos = since(HEAT, local(2026, 12, 1), local(2026, 12, 5))
-        (point,) = seasons.season_points(infos, [(100.0, 25.0)], None, TZ, defrost=[1.23456], defrost_start=None)
+        (point,) = seasons.season_points(
+            infos, [(100.0, 25.0)], None, TZ, defrost=[1.23456], defrost_start=None
+        )
         self.assertEqual(point["defrost_energy"], 1.235)
         self.assertFalse(point["defrost_partial"])
         self.assertEqual(
@@ -618,7 +769,9 @@ class SeasonPointTests(unittest.TestCase):
 
     def test_unknown_defrost_energy_makes_the_point_unknown_but_keeps_it(self):
         infos = since(HEAT, local(2026, 12, 1), local(2026, 12, 5))
-        (point,) = seasons.season_points(infos, [(100.0, 25.0)], None, TZ, defrost=[None])
+        (point,) = seasons.season_points(
+            infos, [(100.0, 25.0)], None, TZ, defrost=[None]
+        )
         self.assertIsNone(point["efficiency"])
         self.assertIsNone(point["defrost_energy"])
         self.assertEqual(point["output_energy"], 100.0)
@@ -632,7 +785,12 @@ class SeasonPointTests(unittest.TestCase):
     def test_unit_factor_with_defrost(self):
         infos = since(HEAT, local(2025, 9, 1), local(2027, 7, 15))
         (point, *_) = seasons.season_points(
-            infos, [(470.0, 100.0)] * len(infos), None, TZ, eff.BTU_PER_WH, defrost=[70.0] * len(infos)
+            infos,
+            [(470.0, 100.0)] * len(infos),
+            None,
+            TZ,
+            eff.BTU_PER_WH,
+            defrost=[70.0] * len(infos),
         )
         self.assertEqual(point["efficiency"], 13.65)  # (470 - 70) / 100 * 3.412142
 
@@ -656,7 +814,10 @@ class UnitTests(unittest.TestCase):
     def test_period_summary_with_factor(self):
         window = eff.Window(local(2026, 1, 1), local(2027, 1, 1))
         rng = eff.Range("day", local(2026, 12, 1), local(2026, 12, 2))
-        day = {"start": local(2026, 12, 1).timestamp(), "end": local(2026, 12, 2).timestamp()}
+        day = {
+            "start": local(2026, 12, 1).timestamp(),
+            "end": local(2026, 12, 2).timestamp(),
+        }
         tbl = {
             "day": eff.TableRead(
                 "day",

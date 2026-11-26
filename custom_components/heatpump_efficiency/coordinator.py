@@ -4,11 +4,9 @@ Thin glue: the per-update orchestration (reads, cache, periods, series) lives in
 ``engine.py`` (pure, unit-tested with a fake reader).
 """
 
-from __future__ import annotations
-
-import logging
 from collections.abc import Mapping, Sequence
 from datetime import datetime
+import logging
 from typing import Any
 
 from homeassistant.components.recorder.statistics import (
@@ -34,6 +32,7 @@ class RecorderReader:
     """The engine's reader on top of the recorder."""
 
     def __init__(self, hass: HomeAssistant) -> None:
+        """Keep the Home Assistant instance whose recorder is read."""
         self._hass = hass
 
     async def read(
@@ -66,7 +65,9 @@ class RecorderReader:
             set(types),
         )
 
-    async def metadata(self, statistic_ids: frozenset[str]) -> Sequence[Mapping[str, Any]]:
+    async def metadata(
+        self, statistic_ids: frozenset[str]
+    ) -> Sequence[Mapping[str, Any]]:
         """recorder/statistics.py async_list_statistic_ids (served from cache on the loop)."""
         return await async_list_statistic_ids(self._hass, set(statistic_ids))
 
@@ -81,7 +82,10 @@ class HeatPumpEfficiencyCoordinator(DataUpdateCoordinator[EngineResult]):
 
     config_entry: HeatPumpEfficiencyConfigEntry
 
-    def __init__(self, hass: HomeAssistant, entry: HeatPumpEfficiencyConfigEntry) -> None:
+    def __init__(
+        self, hass: HomeAssistant, entry: HeatPumpEfficiencyConfigEntry
+    ) -> None:
+        """Set up the coordinator of a config entry."""
         super().__init__(
             hass,
             _LOGGER,

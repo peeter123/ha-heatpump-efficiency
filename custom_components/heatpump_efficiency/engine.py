@@ -69,28 +69,30 @@ One update (``async_update``):
    shows once a refresh succeeds).
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, tzinfo
 from typing import Any, Protocol
 
-from . import efficiency as eff
-from . import seasons as sea
-from . import validation as val
+from . import efficiency as eff, seasons as sea, validation as val
 
-READ_UNITS: Mapping[str, str] = {"energy": "kWh"}  # units=None would convert to the entity's unit
+READ_UNITS: Mapping[str, str] = {
+    "energy": "kWh"
+}  # units=None would convert to the entity's unit
 READ_TYPES: frozenset[str] = frozenset({"change"})
 
 ERROR_FIRST_HOURS = "first_hours"
 ERROR_METADATA = "metadata"
 ERROR_BOUNDARIES = "boundaries"
-HISTORY_FLOOR = datetime(2000, 1, 1, tzinfo=eff.UTC)  # before any Home Assistant statistics
+HISTORY_FLOOR = datetime(
+    2000, 1, 1, tzinfo=eff.UTC
+)  # before any Home Assistant statistics
 BOUNDARY_UNITS: Mapping[str, str] = {"energy": "kWh"}
 BOUNDARY_TYPES: frozenset[str] = frozenset({"sum"})
 # Why a statistic has no reading at a boundary (design D4, group 3 review).
-PENDING = "pending"  # its last row ended before the boundary, or it has no 5-minute rows
+PENDING = (
+    "pending"  # its last row ended before the boundary, or it has no 5-minute rows
+)
 NO_ROW = "no_row"  # covered, but no hourly row in the window before the boundary
 # The season kind of each service; Hot water has none (design D7).
 SEASON_KINDS: Mapping[str, str] = {
@@ -98,7 +100,10 @@ SEASON_KINDS: Mapping[str, str] = {
     val.SERVICE_OVERALL: sea.HEATING,
     val.SERVICE_COOLING: sea.COOLING,
 }
-RECENT_SOURCES = (eff.SOURCE_5MINUTE, eff.SOURCE_HOUR)  # read at every update, before history
+RECENT_SOURCES = (
+    eff.SOURCE_5MINUTE,
+    eff.SOURCE_HOUR,
+)  # read at every update, before history
 
 
 class Reader(Protocol):
@@ -114,7 +119,9 @@ class Reader(Protocol):
     ) -> Mapping[str, Sequence[eff.Row]]:
         """Return the rows of ``statistic_ids`` in ``source`` for the half-open ``window``."""
 
-    async def metadata(self, statistic_ids: frozenset[str]) -> Sequence[Mapping[str, Any]]:
+    async def metadata(
+        self, statistic_ids: frozenset[str]
+    ) -> Sequence[Mapping[str, Any]]:
         """Return the statistics metadata of ``statistic_ids`` (absent when it does not exist)."""
 
 
@@ -126,10 +133,18 @@ class Service:
     output_ids: tuple[str, ...]
     electrical_ids: tuple[str, ...]
     measured_since: date | None
-    season_kind: str | None = None  # ``seasons.HEATING`` or ``seasons.COOLING``; None: no season
-    season_dates: tuple[str, str] | None = None  # the ``MM-DD`` start and end of that kind
-    factor: float = 1.0  # unit factor of the efficiency (``BTU_PER_WH`` for Cooling in BTU/Wh)
-    defrost_ids: tuple[str, ...] = ()  # defrost heat statistics subtracted from the output (design D4)
+    season_kind: str | None = (
+        None  # ``seasons.HEATING`` or ``seasons.COOLING``; None: no season
+    )
+    season_dates: tuple[str, str] | None = (
+        None  # the ``MM-DD`` start and end of that kind
+    )
+    factor: float = (
+        1.0  # unit factor of the efficiency (``BTU_PER_WH`` for Cooling in BTU/Wh)
+    )
+    defrost_ids: tuple[
+        str, ...
+    ] = ()  # defrost heat statistics subtracted from the output (design D4)
 
     @property
     def ids(self) -> frozenset[str]:
@@ -172,9 +187,15 @@ class EngineState:
     first_hours_read_at: datetime | None = None
     metadata: list[Mapping[str, Any]] = field(default_factory=list)
     metadata_ok: bool = False  # the metadata has been read successfully at least once
-    boundaries: dict[datetime, BoundaryRead] = field(default_factory=dict)  # season boundary reads
-    windows: dict[str, eff.Window] = field(default_factory=dict)  # last window requested per table
-    errors: dict[str, str | None] = field(default_factory=dict)  # last error per read, None if ok
+    boundaries: dict[datetime, BoundaryRead] = field(
+        default_factory=dict
+    )  # season boundary reads
+    windows: dict[str, eff.Window] = field(
+        default_factory=dict
+    )  # last window requested per table
+    errors: dict[str, str | None] = field(
+        default_factory=dict
+    )  # last error per read, None if ok
     updated_at: datetime | None = None
 
 
@@ -190,7 +211,9 @@ class PeriodResult:
     # The defrost correction (design D4); the defaults mean no correction.
     defrost_energy: float | None = None
     efficiency_uncorrected: float | None = None
-    defrost_since: str | None = None  # ISO in the time zone; set when the period starts before the defrost statistics
+    defrost_since: str | None = (
+        None  # ISO in the time zone; set when the period starts before the defrost statistics
+    )
     corrected: bool = False  # the service has defrost statistics
 
 
@@ -229,9 +252,13 @@ class ServiceResult:
     daily: list[dict[str, Any]]
     monthly: list[dict[str, Any]]
     effective_start: str | None
-    season: SeasonResult | None = None  # None for a service without a season (Hot water)
+    season: SeasonResult | None = (
+        None  # None for a service without a season (Hot water)
+    )
     defrost_ids: tuple[str, ...] = ()  # diagnostics (design D8)
-    defrost_start: str | None = None  # ISO in the time zone: from when all defrost statistics have data
+    defrost_start: str | None = (
+        None  # ISO in the time zone: from when all defrost statistics have data
+    )
 
 
 @dataclass(frozen=True)
@@ -279,7 +306,9 @@ def services_of(mapping: Mapping[str, Any]) -> list[Service]:
         kind = SEASON_KINDS.get(key)
         if key == val.SERVICE_OVERALL:
             defrost = tuple(
-                dict.fromkeys(i for s in val.DEFROST_SERVICES for i in val.defrost_ids(mapping, s))
+                dict.fromkeys(
+                    i for s in val.DEFROST_SERVICES for i in val.defrost_ids(mapping, s)
+                )
             )
         else:
             defrost = tuple(val.defrost_ids(mapping, key))
@@ -297,7 +326,9 @@ def services_of(mapping: Mapping[str, Any]) -> list[Service]:
                 tuple(entry[val.FIELD_ELECTRICITY]),
                 since,
                 kind if dates_valid else None,
-                (seasons[f"{kind}_start"], seasons[f"{kind}_end"]) if dates_valid and kind else None,
+                (seasons[f"{kind}_start"], seasons[f"{kind}_end"])
+                if dates_valid and kind
+                else None,
                 eff.BTU_PER_WH if key == val.SERVICE_COOLING and btu else 1.0,
                 defrost,
             )
@@ -320,7 +351,11 @@ def mapped_ids(mapping: Mapping[str, Any]) -> list[str]:
 
 
 def _month_after(day: date) -> date:
-    return date(day.year + 1, 1, 1) if day.month == 12 else date(day.year, day.month + 1, 1)
+    return (
+        date(day.year + 1, 1, 1)
+        if day.month == 12
+        else date(day.year, day.month + 1, 1)
+    )
 
 
 def _local_midnight(day: date, tz: tzinfo) -> datetime:
@@ -340,7 +375,9 @@ async def _first_hour(
     if not month_rows:
         return None
     ids = frozenset({statistic_id})
-    month_start = datetime.fromtimestamp(min(float(r["start"]) for r in month_rows), eff.UTC)
+    month_start = datetime.fromtimestamp(
+        min(float(r["start"]) for r in month_rows), eff.UTC
+    )
     first_day = month_start.astimezone(tz).date()
     days = (
         await reader.read(
@@ -368,7 +405,9 @@ async def _first_hour(
         raise LookupError("a day row has no hour row")
     first = min(hours, key=lambda r: float(r["start"]))
     change = first.get("change")
-    return datetime.fromtimestamp(float(first["start"]), eff.UTC), None if change is None else float(change)
+    return datetime.fromtimestamp(
+        float(first["start"]), eff.UTC
+    ), None if change is None else float(change)
 
 
 def first_hours_window(
@@ -410,9 +449,15 @@ def first_hours_window(
         month_after = _month_after(max(hours).astimezone(tz).date())
         return eff.Window(start, min(eff.day_start(month_after, tz), current))
     windows = eff.history_windows(now, tz)
-    start = windows.get(eff.SOURCE_MONTH, windows.get(eff.SOURCE_DAY, windows[eff.SOURCE_5MINUTE])).start
+    start = windows.get(
+        eff.SOURCE_MONTH, windows.get(eff.SOURCE_DAY, windows[eff.SOURCE_5MINUTE])
+    ).start
     first = eff.statistics_day(start, tz).replace(day=1)
-    previous = date(first.year - 1, 12, 1) if first.month == 1 else date(first.year, first.month - 1, 1)
+    previous = (
+        date(first.year - 1, 12, 1)
+        if first.month == 1
+        else date(first.year, first.month - 1, 1)
+    )
     return eff.Window(min(eff.day_start(previous, tz), current), current)
 
 
@@ -441,7 +486,9 @@ async def read_first_hours(
         return {}, {}, {}
     window = first_hours_window(now, tz, full_history, known)
     try:
-        months = dict(await reader.read(eff.SOURCE_MONTH, ids, window, READ_UNITS, READ_TYPES))
+        months = dict(
+            await reader.read(eff.SOURCE_MONTH, ids, window, READ_UNITS, READ_TYPES)
+        )
     except Exception as err:  # noqa: BLE001 - a failed read is data, not an exception
         return {}, {}, {statistic_id: _describe(err) for statistic_id in sorted(ids)}
     errors: dict[str, str] = {}
@@ -449,14 +496,22 @@ async def read_first_hours(
     missing = frozenset(i for i in ids if not months.get(i))
     if window != full and missing:
         try:
-            months.update(await reader.read(eff.SOURCE_MONTH, missing, full, READ_UNITS, READ_TYPES))
+            months.update(
+                await reader.read(
+                    eff.SOURCE_MONTH, missing, full, READ_UNITS, READ_TYPES
+                )
+            )
         except Exception as err:  # noqa: BLE001
-            errors.update({statistic_id: _describe(err) for statistic_id in sorted(missing)})
+            errors.update(
+                {statistic_id: _describe(err) for statistic_id in sorted(missing)}
+            )
     hours: dict[str, datetime | None] = {}
     baselines: dict[str, float] = {}
     for statistic_id in sorted(ids - frozenset(errors)):
         try:
-            first = await _first_hour(reader, statistic_id, months.get(statistic_id), tz)
+            first = await _first_hour(
+                reader, statistic_id, months.get(statistic_id), tz
+            )
         except Exception as err:  # noqa: BLE001
             errors[statistic_id] = _describe(err)
             continue
@@ -475,7 +530,9 @@ def season_infos(
     """The seasons of a service's history (``seasons.seasons_since``); empty without a season."""
     if service.season_dates is None:
         return []
-    return sea.seasons_since(service.season_dates[0], service.season_dates[1], effective, now, tz)
+    return sea.seasons_since(
+        service.season_dates[0], service.season_dates[1], effective, now, tz
+    )
 
 
 def boundaries_needed(
@@ -495,7 +552,9 @@ def boundaries_needed(
     """
     needed: dict[datetime, set[str]] = {}
     for service in services:
-        effective, known = _effective(service, first_hours, tz, last_row_end, now)
+        effective, known = resolve_effective(
+            service, first_hours, tz, last_row_end, now
+        )
         if not known:
             continue
         for info in season_infos(service, effective, now, tz):
@@ -565,10 +624,16 @@ def boundary_actions(
         if (
             any(i not in cached.readings and i not in cached.reasons for i in ids)
             or any(
-                cached.reasons.get(i) == PENDING and ends.get(i) is not None and float(ends[i]) >= b
+                cached.reasons.get(i) == PENDING
+                and ends.get(i) is not None
+                and float(ends[i]) >= b
                 for i in ids
             )
-            or any(i not in cached.first_hours or cached.first_hours[i] != first_hours.get(i) for i in ids)
+            or any(
+                i not in cached.first_hours
+                or cached.first_hours[i] != first_hours.get(i)
+                for i in ids
+            )
             or cached.read_at < settled <= current
         ):
             reads.append(instant)
@@ -576,7 +641,9 @@ def boundary_actions(
 
 
 def after_failed_read(
-    cached: BoundaryRead | None, first_hours: Mapping[str, datetime | None], now: datetime
+    cached: BoundaryRead | None,
+    first_hours: Mapping[str, datetime | None],
+    now: datetime,
 ) -> BoundaryRead:
     """The cache entry of a boundary whose read failed at this update (design D4).
 
@@ -587,7 +654,11 @@ def after_failed_read(
     asks again at the next update. Otherwise (no entry, a failed one, or changed
     first hours) a failed read without readings, read again at the next update.
     """
-    if cached is not None and cached.readings is not None and dict(cached.first_hours) == dict(first_hours):
+    if (
+        cached is not None
+        and cached.readings is not None
+        and dict(cached.first_hours) == dict(first_hours)
+    ):
         return cached
     return BoundaryRead(None, dict(first_hours), now)
 
@@ -612,25 +683,35 @@ async def _refresh_boundaries(
     for instant in [i for i in state.boundaries if i not in needed]:
         del state.boundaries[instant]
     errors = []
-    for instant in boundary_actions(state.boundaries, needed, state.first_hours, now, tz, last_row_end):
+    for instant in boundary_actions(
+        state.boundaries, needed, state.first_hours, now, tz, last_row_end
+    ):
         ids = needed[instant]
         first_hours = {i: state.first_hours.get(i) for i in sorted(ids)}
         window = eff.Window(instant - sea.BOUNDARY_WINDOW, instant)
         try:
-            rows = await reader.read(eff.SOURCE_HOUR, ids, window, BOUNDARY_UNITS, BOUNDARY_TYPES)
+            rows = await reader.read(
+                eff.SOURCE_HOUR, ids, window, BOUNDARY_UNITS, BOUNDARY_TYPES
+            )
         except Exception as err:  # noqa: BLE001 - a failed read is data, not an exception
             errors.append(f"{instant.isoformat()}: {_describe(err)}")
-            state.boundaries[instant] = after_failed_read(state.boundaries.get(instant), first_hours, now)
+            state.boundaries[instant] = after_failed_read(
+                state.boundaries.get(instant), first_hours, now
+            )
             continue
         values = {
             i: reading_or_reason(
                 rows.get(i),
                 # A statistic with rows but no hourly row yet counts as starting now (design D4);
                 # the cache keeps the raw first hour, so the next day's refresh reads it again.
-                now if first_hours[i] is None and last_row_end.get(i) is not None else first_hours[i],
+                now
+                if first_hours[i] is None and last_row_end.get(i) is not None
+                else first_hours[i],
                 last_row_end.get(i),
                 instant,
-                state.baselines.get(i) if i in defrost else None,  # only a defrost statistic has one (D12)
+                state.baselines.get(i)
+                if i in defrost
+                else None,  # only a defrost statistic has one (D12)
             )
             for i in sorted(ids)
         }
@@ -646,7 +727,7 @@ async def _refresh_boundaries(
 # --- the update --------------------------------------------------------------
 
 
-def _effective(
+def resolve_effective(
     service: Service,
     first_hours: Mapping[str, datetime | None],
     tz: tzinfo,
@@ -690,11 +771,15 @@ def needed_windows(
     tz: tzinfo,
 ) -> dict[str, eff.Window]:
     """The windows to read per table, from the effective starts (``history_windows``)."""
-    starts = [_effective(service, state.first_hours, tz)[0] for service in services]
-    hourly = any(eff.reads_hourly(service.all_ids, hourly_only_ids) for service in services)
+    starts = [
+        resolve_effective(service, state.first_hours, tz)[0] for service in services
+    ]
+    hourly = any(
+        eff.reads_hourly(service.all_ids, hourly_only_ids) for service in services
+    )
     # The month and day windows include each service's running season (design D3).
     running = []
-    for service, start in zip(services, starts):
+    for service, start in zip(services, starts, strict=True):
         infos = season_infos(service, start, now, tz)
         if infos and not infos[-1].ended:
             running.append(infos[-1].covered_start)
@@ -717,12 +802,18 @@ def _read_ids(
         return all_ids - hourly_only_ids
     if source == eff.SOURCE_HOUR:
         return frozenset().union(
-            *(s.all_ids for s in services if eff.reads_hourly(s.all_ids, hourly_only_ids))
+            *(
+                s.all_ids
+                for s in services
+                if eff.reads_hourly(s.all_ids, hourly_only_ids)
+            )
         )
     return all_ids
 
 
-async def _refresh_metadata(state: EngineState, reader: Reader, all_ids: frozenset[str]) -> None:
+async def _refresh_metadata(
+    state: EngineState, reader: Reader, all_ids: frozenset[str]
+) -> None:
     """Read the metadata (every update, design D4); a failure keeps the last good metadata.
 
     ``metadata_ok`` is set by the first successful read and stays set; the error
@@ -766,17 +857,30 @@ async def _refresh_first_hours(
     read_before = state.first_hours_read_at is not None
     all_errors: dict[str, str] = {}
     for group in (base_ids, defrost_ids):
-        known = {i: h for i, h in state.first_hours.items() if i in group} if read_before else None
-        hours, baselines, errors = await read_first_hours(reader, group, now, tz, full_history, known)
+        known = (
+            {i: h for i, h in state.first_hours.items() if i in group}
+            if read_before
+            else None
+        )
+        hours, baselines, errors = await read_first_hours(
+            reader, group, now, tz, full_history, known
+        )
         state.first_hours.update(hours)
-        for statistic_id, hour in hours.items():  # refreshed with the first hours (design D12)
+        for (
+            statistic_id,
+            hour,
+        ) in hours.items():  # refreshed with the first hours (design D12)
             if hour is None or statistic_id not in baselines:
                 state.baselines.pop(statistic_id, None)
             else:
                 state.baselines[statistic_id] = baselines[statistic_id]
         all_errors.update(errors)
     state.errors[ERROR_FIRST_HOURS] = (
-        "; ".join(f"{statistic_id}: {text}" for statistic_id, text in sorted(all_errors.items())) or None
+        "; ".join(
+            f"{statistic_id}: {text}"
+            for statistic_id, text in sorted(all_errors.items())
+        )
+        or None
     )
     if not all_errors:
         state.first_hours_read_at = now
@@ -799,7 +903,11 @@ async def _read_table(
     state.windows[source] = window
     rows: Mapping[str, Sequence[eff.Row]] | None
     try:
-        rows = await reader.read(source, ids, window, READ_UNITS, READ_TYPES) if ids else {}
+        rows = (
+            await reader.read(source, ids, window, READ_UNITS, READ_TYPES)
+            if ids
+            else {}
+        )
         state.errors[source] = None
     except Exception as err:  # noqa: BLE001
         rows = None
@@ -831,13 +939,17 @@ async def async_update(
     await _refresh_metadata(state, reader, all_ids)
     hourly_only_ids = eff.hourly_only(state.metadata)
     needed = needed_windows(services, state, hourly_only_ids, now, tz)
-    actions = eff.cache_actions(state.tables, state.first_hours_read_at, needed, all_ids, now, tz)
+    actions = eff.cache_actions(
+        state.tables, state.first_hours_read_at, needed, all_ids, now, tz
+    )
     if actions.first_hours:
         # With seasons the first hours reach back to the real start of the statistics
         # (the whole history once per load, then bounded; ``first_hours_window``).
         full_history = any(service.season_dates is not None for service in services)
         base_ids: frozenset[str] = frozenset().union(*(s.ids for s in services))
-        await _refresh_first_hours(state, reader, base_ids, all_ids - base_ids, now, tz, full_history)
+        await _refresh_first_hours(
+            state, reader, base_ids, all_ids - base_ids, now, tz, full_history
+        )
         needed = needed_windows(services, state, hourly_only_ids, now, tz)
         actions = eff.cache_actions(
             state.tables, state.first_hours_read_at, needed, all_ids, now, tz
@@ -852,7 +964,9 @@ async def async_update(
     last_ends = eff.last_row_ends(all_ids, hourly_only_ids, state.tables)
     for source in eff.HISTORY_SOURCES:
         if source in actions.tables:
-            await _read_table(state, reader, source, all_ids, needed[source], last_ends, now)
+            await _read_table(
+                state, reader, source, all_ids, needed[source], last_ends, now
+            )
     if state.metadata_ok:
         await _refresh_boundaries(state, reader, services, last_ends, now, tz)
     state.updated_at = now
@@ -881,9 +995,13 @@ def compute(
     last_ends = eff.last_row_ends(all_ids, hourly_only_ids, state.tables)
     results: dict[str, ServiceResult] = {}
     for service in services:
-        effective, known = _effective(service, state.first_hours, tz, last_ends, now)
+        effective, known = resolve_effective(
+            service, state.first_hours, tz, last_ends, now
+        )
         results[service.key] = (
-            _service_result(state, service, effective, hourly_only_ids, last_ends, now, tz)
+            _service_result(
+                state, service, effective, hourly_only_ids, last_ends, now, tz
+            )
             if known and state.metadata_ok
             else _unknown_result(service)
         )
@@ -900,9 +1018,13 @@ def compute(
 def _unknown_result(service: Service) -> ServiceResult:
     corrected = bool(service.defrost_ids)
     unknown = PeriodResult(None, None, None, None, False, corrected=corrected)
-    season = None if service.season_dates is None else _season_result([], [], corrected=corrected)
+    season = (
+        None
+        if service.season_dates is None
+        else _season_result([], [], corrected=corrected)
+    )
     return ServiceResult(
-        {period: unknown for period in eff.PERIODS}, [], [], None, season, service.defrost_ids
+        dict.fromkeys(eff.PERIODS, unknown), [], [], None, season, service.defrost_ids
     )
 
 
@@ -927,10 +1049,17 @@ def _season_result(
     the shown point is ``defrost_partial``); both only for a service with defrost IDs.
     """
     if not infos:
-        return SeasonResult(None, None, None, None, None, False, False, False, [], corrected=corrected)
+        return SeasonResult(
+            None, None, None, None, None, False, False, False, [], corrected=corrected
+        )
     info, point = infos[-1], points[-1]
     since = None
-    if corrected and defrost_since is not None and tz is not None and point.get("defrost_partial"):
+    if (
+        corrected
+        and defrost_since is not None
+        and tz is not None
+        and point.get("defrost_partial")
+    ):
         since = defrost_since.astimezone(tz).isoformat()
     return SeasonResult(
         point["efficiency"],
@@ -957,7 +1086,7 @@ def _defrost_start(
 ) -> datetime | None:
     """From when all the service's defrost statistics have data (``efficiency.defrost_start``).
 
-    As ``_effective`` takes the first hours: a known hour as is; a statistic with
+    As ``resolve_effective`` takes the first hours: a known hour as is; a statistic with
     rows in this update's reads but no hourly row yet counts as starting now; one
     without rows is left out. None without defrost IDs or hours.
     """
@@ -971,7 +1100,9 @@ def _defrost_start(
     return eff.defrost_start(hours, now)
 
 
-def _defrost_firsts(state: EngineState, service: Service) -> dict[str, tuple[datetime, float]]:
+def _defrost_firsts(
+    state: EngineState, service: Service
+) -> dict[str, tuple[datetime, float]]:
     """The first hour and baseline of the service's defrost statistics (design D12).
 
     Only a defrost statistic with a known first hour and baseline; the baseline is applied
@@ -980,7 +1111,8 @@ def _defrost_firsts(state: EngineState, service: Service) -> dict[str, tuple[dat
     return {
         statistic_id: (hour, state.baselines[statistic_id])
         for statistic_id in service.defrost_ids
-        if (hour := state.first_hours.get(statistic_id)) is not None and statistic_id in state.baselines
+        if (hour := state.first_hours.get(statistic_id)) is not None
+        and statistic_id in state.baselines
     }
 
 
@@ -1015,10 +1147,14 @@ def _service_season(
             energies.append(
                 (
                     sea.season_energy(start_readings, end_readings, service.output_ids),
-                    sea.season_energy(start_readings, end_readings, service.electrical_ids),
+                    sea.season_energy(
+                        start_readings, end_readings, service.electrical_ids
+                    ),
                 )
             )
-            defrost.append(sea.season_energy(start_readings, end_readings, service.defrost_ids))
+            defrost.append(
+                sea.season_energy(start_readings, end_readings, service.defrost_ids)
+            )
         else:
             ranges = sea.running_ranges(info, now, tz, end, hourly)
             energies.append(
@@ -1032,12 +1168,25 @@ def _service_season(
             defrost.append(
                 None
                 if ranges is None
-                else eff.period_energy(state.tables, service.defrost_ids, ranges, firsts)
+                else eff.period_energy(
+                    state.tables, service.defrost_ids, ranges, firsts
+                )
             )
     if not service.defrost_ids:
-        return _season_result(infos, sea.season_points(infos, energies, service.measured_since, tz, service.factor))
+        return _season_result(
+            infos,
+            sea.season_points(
+                infos, energies, service.measured_since, tz, service.factor
+            ),
+        )
     points = sea.season_points(
-        infos, energies, service.measured_since, tz, service.factor, defrost, defrost_start
+        infos,
+        energies,
+        service.measured_since,
+        tz,
+        service.factor,
+        defrost,
+        defrost_start,
     )
     uncorrected = eff.ratio(*energies[-1], service.factor) if energies else None
     return _season_result(infos, points, uncorrected, defrost_start, tz, True)
@@ -1119,18 +1268,25 @@ def _iso(value: datetime | None) -> str | None:
 
 
 def diagnostics_data(state: EngineState, result: EngineResult | None) -> dict[str, Any]:
-    """JSON-safe diagnostics: metadata, last windows, cached energies, the defrost IDs, start,
-    first hours and baselines per service, boundary reads, season points and last errors.
+    """Return the JSON-safe diagnostics.
+
+    The data: metadata, last windows, cached energies, the defrost IDs, start, first hours
+    and baselines per service, boundary reads, season points and last errors.
 
     Inputs: the engine state and the last result (None before the first update).
     """
     tables = {
         source: {
-            "window": {"start": _iso(table.window.start), "end": _iso(table.window.end)},
+            "window": {
+                "start": _iso(table.window.start),
+                "end": _iso(table.window.end),
+            },
             "read_at": _iso(table.read_at),
             "ok": table.rows is not None,
             "covered": sorted(table.covered),
-            "rows": {} if table.rows is None else {k: len(v) for k, v in sorted(table.rows.items())},
+            "rows": {}
+            if table.rows is None
+            else {k: len(v) for k, v in sorted(table.rows.items())},
         }
         for source, table in sorted(state.tables.items())
     }
@@ -1163,8 +1319,13 @@ def diagnostics_data(state: EngineState, result: EngineResult | None) -> dict[st
             # Each defrost statistic's baseline next to its first hour (design D12).
             **(
                 {
-                    "first_hours": {i: _iso(state.first_hours.get(i)) for i in sorted(service.defrost_ids)},
-                    "baselines": {i: state.baselines.get(i) for i in sorted(service.defrost_ids)},
+                    "first_hours": {
+                        i: _iso(state.first_hours.get(i))
+                        for i in sorted(service.defrost_ids)
+                    },
+                    "baselines": {
+                        i: state.baselines.get(i) for i in sorted(service.defrost_ids)
+                    },
                 }
                 if service.defrost_ids
                 else {}
@@ -1174,7 +1335,9 @@ def diagnostics_data(state: EngineState, result: EngineResult | None) -> dict[st
     }
     boundaries = {
         _iso(instant): {
-            "readings": None if read.readings is None else dict(sorted(read.readings.items())),
+            "readings": None
+            if read.readings is None
+            else dict(sorted(read.readings.items())),
             "reasons": dict(sorted(read.reasons.items())),
             "first_hours": {k: _iso(v) for k, v in sorted(read.first_hours.items())},
             "read_at": _iso(read.read_at),

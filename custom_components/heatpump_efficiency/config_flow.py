@@ -3,11 +3,9 @@
 Thin glue: the rules live in ``validation.py`` (pure, unit-tested).
 """
 
-from __future__ import annotations
-
 from typing import Any
 
-import voluptuous as vol  # Home Assistant aliases voluptuous to probatio
+import probatio
 
 from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.statistics import (
@@ -30,7 +28,6 @@ from .seasons import default_seasons
 from .validation import (
     COOLING_UNITS,
     DEFROST_SERVICES,
-    cooling_unit,
     FIELD_DEFROST_HEAT,
     FIELD_ELECTRICITY,
     FIELD_MEASURED_SINCE,
@@ -44,6 +41,7 @@ from .validation import (
     SERVICE_COOLING,
     SERVICES,
     Validation,
+    cooling_unit,
     expanded_sections,
     normalize_mapping,
     shared_outputs,
@@ -56,7 +54,9 @@ from .validation import (
 # data_entry_flow.py section(schema, {"collapsed": bool}); a submitted section is a nested dict.
 # selector.py StatisticSelector(multiple=True) returns list[str], single returns str;
 # DateSelector returns the submitted "YYYY-MM-DD" string; EntitySelector a str.
-_STATISTICS = selector.StatisticSelector(selector.StatisticSelectorConfig(multiple=True))
+_STATISTICS = selector.StatisticSelector(
+    selector.StatisticSelectorConfig(multiple=True)
+)
 
 
 # selector.py SelectSelector(SelectSelectorConfig(options, mode, translation_key)) returns a
@@ -84,41 +84,41 @@ _COOLING_UNIT = selector.SelectSelector(
 )
 
 
-def _service_schema(service: str) -> vol.Schema:
+def _service_schema(service: str) -> probatio.Schema:
     schema: dict[Any, Any] = {
-        vol.Optional(FIELD_OUTPUT): _STATISTICS,
-        vol.Optional(FIELD_ELECTRICITY): _STATISTICS,
-        vol.Optional(FIELD_MEASURED_SINCE): selector.DateSelector(),
+        probatio.Optional(FIELD_OUTPUT): _STATISTICS,
+        probatio.Optional(FIELD_ELECTRICITY): _STATISTICS,
+        probatio.Optional(FIELD_MEASURED_SINCE): selector.DateSelector(),
     }
     if service == SERVICE_COOLING:
-        schema[vol.Optional(FIELD_UNIT)] = _COOLING_UNIT
+        schema[probatio.Optional(FIELD_UNIT)] = _COOLING_UNIT
     if service in DEFROST_SERVICES:
         # The same multiple StatisticSelector as output and electricity (list[str]).
-        schema[vol.Optional(FIELD_DEFROST_HEAT)] = _STATISTICS
-    return vol.Schema(schema)
+        schema[probatio.Optional(FIELD_DEFROST_HEAT)] = _STATISTICS
+    return probatio.Schema(schema)
 
 
-def _seasons_schema() -> vol.Schema:
+def _seasons_schema() -> probatio.Schema:
     schema: dict[Any, Any] = {}
     for date_key in SEASON_DATES:
-        schema[vol.Optional(date_key + SEASON_MONTH_SUFFIX)] = _MONTH
-        schema[vol.Optional(date_key + SEASON_DAY_SUFFIX)] = _DAY
-    return vol.Schema(schema)
+        schema[probatio.Optional(date_key + SEASON_MONTH_SUFFIX)] = _MONTH
+        schema[probatio.Optional(date_key + SEASON_DAY_SUFFIX)] = _DAY
+    return probatio.Schema(schema)
 
 
-def _form_schema(with_name: bool, expanded: set[str]) -> vol.Schema:
+def _form_schema(with_name: bool, expanded: set[str]) -> probatio.Schema:
     """The sectioned form; ``with_name`` adds the name (setup only)."""
     schema: dict[Any, Any] = {}
     if with_name:
-        schema[vol.Required(FIELD_NAME)] = selector.TextSelector()
+        schema[probatio.Required(FIELD_NAME)] = selector.TextSelector()
     for service in SERVICES:
-        schema[vol.Optional(service)] = section(
+        schema[probatio.Optional(service)] = section(
             _service_schema(service), {"collapsed": service not in expanded}
         )
-    schema[vol.Optional(SECTION_SEASONS)] = section(
+    schema[probatio.Optional(SECTION_SEASONS)] = section(
         _seasons_schema(), {"collapsed": SECTION_SEASONS not in expanded}
     )
-    return vol.Schema(schema)
+    return probatio.Schema(schema)
 
 
 async def _async_validate(
@@ -143,17 +143,25 @@ class HeatPumpEfficiencyConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> HeatPumpEfficiencyOptionsFlow:
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> HeatPumpEfficiencyOptionsFlow:
         """Return the options flow."""
         return HeatPumpEfficiencyOptionsFlow()
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Ask for the name and the mapping."""
         errors: dict[str, str] = {}
         placeholders: dict[str, str] = {}
-        defaults = default_seasons(self.hass.config.latitude)  # core_config.py Config.latitude
+        defaults = default_seasons(
+            self.hass.config.latitude
+        )  # core_config.py Config.latitude
         schema = _form_schema(True, expanded_sections(None))
-        schema = self.add_suggested_values_to_schema(schema, suggested_values(None, defaults))
+        schema = self.add_suggested_values_to_schema(
+            schema, suggested_values(None, defaults)
+        )
         if user_input is not None:
             mapping = normalize_mapping(user_input)
             name = str(user_input.get(FIELD_NAME, "")).strip()
@@ -195,7 +203,9 @@ class HeatPumpEfficiencyOptionsFlow(OptionsFlowWithReload):
     _pending: dict[str, Any]
     _sensors: str
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Show the form with the current values and store the new mapping."""
         errors: dict[str, str] = {}
         placeholders: dict[str, str] = {}
@@ -206,7 +216,9 @@ class HeatPumpEfficiencyOptionsFlow(OptionsFlowWithReload):
             if not result.errors:
                 # Query the statistics only when the Cooling unit really changes.
                 if cooling_unit(self.config_entry.options) != cooling_unit(mapping):
-                    with_statistics = await self._async_cooling_entities_with_statistics()
+                    with_statistics = (
+                        await self._async_cooling_entities_with_statistics()
+                    )
                     if unit_change_needs_warning(
                         self.config_entry.options, mapping, bool(with_statistics)
                     ):
@@ -219,7 +231,9 @@ class HeatPumpEfficiencyOptionsFlow(OptionsFlowWithReload):
         schema = _form_schema(False, expanded_sections(mapping, errors))
         # data_entry_flow.py add_suggested_values_to_schema handles nested sections.
         # Stored season dates become form fields; the defaults fill in when none are stored.
-        defaults = default_seasons(self.hass.config.latitude)  # core_config.py Config.latitude
+        defaults = default_seasons(
+            self.hass.config.latitude
+        )  # core_config.py Config.latitude
         suggested = (
             user_input
             if user_input is not None
@@ -245,7 +259,7 @@ class HeatPumpEfficiencyOptionsFlow(OptionsFlowWithReload):
             return self.async_create_entry(data=self._pending)
         return self.async_show_form(
             step_id="unit_change",
-            data_schema=vol.Schema({}),
+            data_schema=probatio.Schema({}),
             description_placeholders={"sensors": self._sensors},
         )
 
@@ -256,7 +270,9 @@ class HeatPumpEfficiencyOptionsFlow(OptionsFlowWithReload):
         registry = er.async_get(self.hass)
         entity_ids = {
             entity_id
-            for unique_id in sensor_model.service_unique_ids(self.config_entry.entry_id, SERVICE_COOLING)
+            for unique_id in sensor_model.service_unique_ids(
+                self.config_entry.entry_id, SERVICE_COOLING
+            )
             if (
                 entity_id := registry.async_get_entity_id(
                     "sensor",

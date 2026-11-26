@@ -47,18 +47,15 @@ Typical update (the coordinator is glue around these functions):
    ``defrost_partial`` of a covered start.
 """
 
-from __future__ import annotations
-
-import calendar
-import math
 from bisect import bisect_left, bisect_right
+import calendar
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from functools import cached_property, lru_cache
+import math
 from typing import Any
 
-UTC = timezone.utc
 HOUR_SECONDS = 3600
 
 MIN_ELECTRICAL_KWH = 0.1  # below this the ratio is unknown
@@ -72,7 +69,10 @@ SOURCE_MONTH = "month"
 SOURCE_DAY = "day"
 SOURCE_HOUR = "hour"
 SOURCE_5MINUTE = "5minute"
-HISTORY_SOURCES = (SOURCE_MONTH, SOURCE_DAY)  # completed history, cached between updates
+HISTORY_SOURCES = (
+    SOURCE_MONTH,
+    SOURCE_DAY,
+)  # completed history, cached between updates
 
 RECORDER = "recorder"  # metadata source of statistics compiled by the recorder
 
@@ -170,7 +170,11 @@ def first_day_at_or_after(instant: Instant, tz: tzinfo) -> date:
 
 def _next_month(day: date) -> date:
     """First day of the month after ``day``'s month."""
-    return date(day.year + 1, 1, 1) if day.month == 12 else date(day.year, day.month + 1, 1)
+    return (
+        date(day.year + 1, 1, 1)
+        if day.month == 12
+        else date(day.year, day.month + 1, 1)
+    )
 
 
 def _add_months(first: date, months: int) -> date:
@@ -190,6 +194,7 @@ class Window:
     end: datetime
 
     def __post_init__(self) -> None:
+        """Check that both ends are timezone aware."""
         aware(self.start, "window start")
         aware(self.end, "window end")
 
@@ -212,6 +217,7 @@ class Range:
     end_ts: float = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        """Derive the epoch seconds of both ends."""
         object.__setattr__(self, "start_ts", ts(self.start, "range start"))
         object.__setattr__(self, "end_ts", ts(self.end, "range end"))
 
@@ -240,6 +246,7 @@ class TableRead:
     read_at: datetime | None = None
 
     def __post_init__(self) -> None:
+        """Check that the read time, when given, is timezone aware."""
         if self.read_at is not None:
             aware(self.read_at, "read_at")
 
@@ -256,7 +263,12 @@ class TableRead:
         for statistic_id, rows in (self.rows or {}).items():
             pairs = sorted(
                 (
-                    (_ceil_hour(row["start"]) if hourly_keys else float(row["start"]), row.get("change"))
+                    (
+                        _ceil_hour(row["start"])
+                        if hourly_keys
+                        else float(row["start"]),
+                        row.get("change"),
+                    )
                     for row in rows
                 ),
                 key=lambda pair: pair[0],
@@ -285,7 +297,7 @@ class TableRead:
         if self.source == SOURCE_5MINUTE:
             return [
                 0.0 if hour <= key < hour + HOUR_SECONDS else change
-                for key, change in zip(keys[low:high], result)
+                for key, change in zip(keys[low:high], result, strict=True)
             ]
         if not rng.contains(hour):
             return result
@@ -320,7 +332,9 @@ def hourly_only(metadata: Iterable[Mapping[str, Any]]) -> frozenset[str]:
     ``source`` is not ``recorder`` has no 5-minute rows; a missing ``source``
     counts as ``recorder``.
     """
-    return frozenset(m["statistic_id"] for m in metadata if m.get("source", RECORDER) != RECORDER)
+    return frozenset(
+        m["statistic_id"] for m in metadata if m.get("source", RECORDER) != RECORDER
+    )
 
 
 def last_row_ends(
@@ -339,13 +353,21 @@ def last_row_ends(
     result: dict[str, float | None] = {}
     for statistic_id in statistic_ids:
         table = tables.get(SOURCE_HOUR if statistic_id in hourly else SOURCE_5MINUTE)
-        rows = None if table is None or table.rows is None else table.rows.get(statistic_id)
-        result[statistic_id] = max((float(r["end"]) for r in rows), default=None) if rows else None
+        rows = (
+            None
+            if table is None or table.rows is None
+            else table.rows.get(statistic_id)
+        )
+        result[statistic_id] = (
+            max((float(r["end"]) for r in rows), default=None) if rows else None
+        )
     return result
 
 
 def coverage(
-    statistic_ids: Iterable[str], window: Window, last_row_end: Mapping[str, Instant | None]
+    statistic_ids: Iterable[str],
+    window: Window,
+    last_row_end: Mapping[str, Instant | None],
 ) -> frozenset[str]:
     """The statistics a read of ``window`` covers.
 
@@ -390,7 +412,9 @@ def coverage_end(
     """
     ids = list(statistic_ids)
     current = aware(now, "now").astimezone(UTC)
-    table = tables.get(SOURCE_HOUR if reads_hourly(ids, hourly_only_ids) else SOURCE_5MINUTE)
+    table = tables.get(
+        SOURCE_HOUR if reads_hourly(ids, hourly_only_ids) else SOURCE_5MINUTE
+    )
     if not ids or table is None or table.rows is None:
         return NO_COVERAGE
     ends = []
@@ -424,7 +448,9 @@ def cover(start: date, end: date, tz: tzinfo) -> list[Range]:
     if day < end:
         months_end = date(end.year, end.month, 1)
         if months_end > day:
-            out.append(Range(SOURCE_MONTH, day_start(day, tz), day_start(months_end, tz)))
+            out.append(
+                Range(SOURCE_MONTH, day_start(day, tz), day_start(months_end, tz))
+            )
             day = months_end
     if day < end:
         out.append(Range(SOURCE_DAY, day_start(day, tz), day_start(end, tz)))
@@ -442,7 +468,7 @@ def span(
     today_start = day_start(today, tz)
     if start > today or end < today_start:
         return None
-    return cover(start, today, tz) + [Range(source, today_start, end.astimezone(UTC))]
+    return [*cover(start, today, tz), Range(source, today_start, end.astimezone(UTC))]
 
 
 def _natural_starts(today: date) -> dict[str, date]:
@@ -457,10 +483,16 @@ def _natural_starts(today: date) -> dict[str, date]:
 
 def _floor(effective: Instant | None, tz: tzinfo) -> date | None:
     """The first statistics day an effective start allows (None: no limit)."""
-    return None if effective is None else first_day_at_or_after(aware(effective, "effective"), tz)
+    return (
+        None
+        if effective is None
+        else first_day_at_or_after(aware(effective, "effective"), tz)
+    )
 
 
-def _end_and_source(now: datetime, end: datetime | None, hourly: bool) -> tuple[datetime, str]:
+def _end_and_source(
+    now: datetime, end: datetime | None, hourly: bool
+) -> tuple[datetime, str]:
     """Where today's range ends (the coverage end, at most now) and the table it is read from."""
     current = aware(now, "now")
     source = SOURCE_HOUR if hourly else SOURCE_5MINUTE
@@ -539,7 +571,9 @@ def effective_start(
     for hour in first_hours:
         if hour is None:
             if now is None:
-                raise ValueError("now is required for a first hour that is not known yet")
+                raise ValueError(
+                    "now is required for a first hour that is not known yet"
+                )
             hour = now
         hours.append(ts(hour, "first hour"))
     if not hours:
@@ -586,7 +620,9 @@ def period_energy(
         if not any(rows.get(statistic_id) for rows in read):
             return None
         for rng in ranges:
-            for change in tables[rng.source].changes(statistic_id, rng, firsts.get(statistic_id)):  # type: ignore[union-attr]
+            for change in tables[rng.source].changes(  # type: ignore[union-attr]
+                statistic_id, rng, firsts.get(statistic_id)
+            ):
                 if change is None:
                     return None
                 total += change
@@ -603,7 +639,11 @@ def ratio(
     energy is below 0.1 kWh (checked first); the factor multiplies the
     unrounded ratio before rounding.
     """
-    if output_kwh is None or electrical_kwh is None or electrical_kwh < MIN_ELECTRICAL_KWH:
+    if (
+        output_kwh is None
+        or electrical_kwh is None
+        or electrical_kwh < MIN_ELECTRICAL_KWH
+    ):
         return None
     return round(output_kwh / electrical_kwh * factor, 2)
 
@@ -635,7 +675,9 @@ def corrected_ratio(
     return round(corrected / electrical_kwh * factor, 2)
 
 
-def defrost_start(first_hours: Iterable[Instant | None], now: Instant) -> datetime | None:
+def defrost_start(
+    first_hours: Iterable[Instant | None], now: Instant
+) -> datetime | None:
     """The point from which a service's defrost statistics all count (design D5, D12).
 
     Input: the first statistics hour of each defrost statistic of a service
@@ -647,14 +689,17 @@ def defrost_start(first_hours: Iterable[Instant | None], now: Instant) -> dateti
     no hours.
     """
     hours = [
-        ts(now, "now") if hour is None else ts(hour, "first hour") + HOUR_SECONDS for hour in first_hours
+        ts(now, "now") if hour is None else ts(hour, "first hour") + HOUR_SECONDS
+        for hour in first_hours
     ]
     if not hours:
         return None
     return datetime.fromtimestamp(max(hours), UTC)
 
 
-def defrost_partial(covered_start: Instant | None, defrost_start: Instant | None) -> bool:
+def defrost_partial(
+    covered_start: Instant | None, defrost_start: Instant | None
+) -> bool:
     """Whether a period or point starts before its defrost statistics do (design D5).
 
     Inputs: its covered start (``period_starts`` or a range start) and the
@@ -693,7 +738,11 @@ def period_summary(
     """
     defrost = list(defrost_ids)
     if ranges is None:
-        empty: dict[str, float | None] = {"output_energy": None, "electrical_energy": None, "efficiency": None}
+        empty: dict[str, float | None] = {
+            "output_energy": None,
+            "electrical_energy": None,
+            "efficiency": None,
+        }
         if defrost:
             empty.update({"defrost_energy": None, "efficiency_uncorrected": None})
         return empty
@@ -707,7 +756,9 @@ def period_summary(
     if defrost:
         defrost_kwh = period_energy(tables, defrost, ranges, defrost_firsts)
         result["efficiency"] = corrected_ratio(output, defrost_kwh, electrical, factor)
-        result["defrost_energy"] = None if defrost_kwh is None else round(defrost_kwh, 3)
+        result["defrost_energy"] = (
+            None if defrost_kwh is None else round(defrost_kwh, 3)
+        )
         result["efficiency_uncorrected"] = ratio(output, electrical, factor)
     return result
 
@@ -729,7 +780,7 @@ def includes_estimated(
 # --- series ---------------------------------------------------------------
 
 
-def _daily_plan(
+def daily_plan(
     now: datetime,
     tz: tzinfo,
     effective: datetime | None,
@@ -745,13 +796,17 @@ def _daily_plan(
         day = today - timedelta(days=back)
         if floor is not None and day < floor:
             continue
-        ranges = span(day, today, tz, end, source) if back == 0 else cover(day, day + timedelta(days=1), tz)
+        ranges = (
+            span(day, today, tz, end, source)
+            if back == 0
+            else cover(day, day + timedelta(days=1), tz)
+        )
         if ranges:
             plan.append((day, ranges))
     return plan
 
 
-def _monthly_plan(
+def monthly_plan(
     now: datetime,
     tz: tzinfo,
     effective: datetime | None,
@@ -770,7 +825,11 @@ def _monthly_plan(
         start = first if floor is None else max(first, floor)
         if start >= month_end or start > today:
             continue
-        ranges = span(start, today, tz, end, source) if back == 0 else cover(start, month_end, tz)
+        ranges = (
+            span(start, today, tz, end, source)
+            if back == 0
+            else cover(start, month_end, tz)
+        )
         if ranges:
             plan.append((first, ranges))
     return plan
@@ -788,7 +847,11 @@ def _points(
     defrost_start: Instant | None = None,
     defrost_firsts: DefrostFirsts | None = None,
 ) -> list[dict[str, Any]]:
-    output_ids, electrical_ids, defrost_ids = list(output_ids), list(electrical_ids), list(defrost_ids)
+    output_ids, electrical_ids, defrost_ids = (
+        list(output_ids),
+        list(electrical_ids),
+        list(defrost_ids),
+    )
     points = []
     for start, ranges in plan:
         output = period_energy(tables, output_ids, ranges)
@@ -845,9 +908,17 @@ def daily_series(
     and baselines (``period_energy``, design D12). Without defrost IDs the
     points are unchanged.
     """
-    plan = _daily_plan(now, tz, effective, end, hourly)
+    plan = daily_plan(now, tz, effective, end, hourly)
     return _points(
-        plan, tables, output_ids, electrical_ids, measured_since, tz, factor, defrost_ids, defrost_start,
+        plan,
+        tables,
+        output_ids,
+        electrical_ids,
+        measured_since,
+        tz,
+        factor,
+        defrost_ids,
+        defrost_start,
         defrost_firsts,
     )
 
@@ -876,9 +947,17 @@ def monthly_series(
     effective start where it cuts the month) with the measured-since day.
     ``factor``, ``defrost_ids``, ``defrost_start`` and ``defrost_firsts`` as ``daily_series``.
     """
-    plan = _monthly_plan(now, tz, effective, end, hourly)
+    plan = monthly_plan(now, tz, effective, end, hourly)
     return _points(
-        plan, tables, output_ids, electrical_ids, measured_since, tz, factor, defrost_ids, defrost_start,
+        plan,
+        tables,
+        output_ids,
+        electrical_ids,
+        measured_since,
+        tz,
+        factor,
+        defrost_ids,
+        defrost_start,
         defrost_firsts,
     )
 
@@ -909,7 +988,9 @@ def history_windows(
     for effective in effective_starts:
         for period in period_ranges(current, tz, effective).values():
             ranges.extend(period or [])
-        for _, rs in _daily_plan(current, tz, effective) + _monthly_plan(current, tz, effective):
+        for _, rs in daily_plan(current, tz, effective) + monthly_plan(
+            current, tz, effective
+        ):
             ranges.extend(rs)
     today = statistics_day(current, tz)
     for season_start in season_starts:
@@ -967,7 +1048,11 @@ def cache_actions(
     """
     today = statistics_day(aware(now, "now"), tz)
     ids = frozenset(statistic_ids)
-    first = first_hours_read_at is None or statistics_day(aware(first_hours_read_at, "first_hours_read_at"), tz) != today
+    first = (
+        first_hours_read_at is None
+        or statistics_day(aware(first_hours_read_at, "first_hours_read_at"), tz)
+        != today
+    )
     reads: set[str] = set()
     for source, window in needed.items():
         if source not in HISTORY_SOURCES:
@@ -984,9 +1069,10 @@ def cache_actions(
             reads.add(source)
             continue
         read_day = statistics_day(cached.read_at, tz)
-        if source == SOURCE_DAY and read_day != today:
-            reads.add(source)
-        elif source == SOURCE_MONTH and (read_day.year, read_day.month) != (today.year, today.month):
+        if (source == SOURCE_DAY and read_day != today) or (
+            source == SOURCE_MONTH
+            and (read_day.year, read_day.month) != (today.year, today.month)
+        ):
             reads.add(source)
     return CacheActions(tables=frozenset(reads), first_hours=first)
 

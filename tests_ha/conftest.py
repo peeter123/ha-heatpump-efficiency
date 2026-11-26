@@ -17,4 +17,3 @@ def auto_enable_custom_integrations(recorder_mock, enable_custom_integrations):
     recorder_db_url asserts that hass is not set up yet; its README says recorder_mock must be initialized before
     enable_custom_integrations (issue 132). The manifest depends on recorder.
     """
-    yield
