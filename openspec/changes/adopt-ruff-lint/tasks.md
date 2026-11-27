@@ -79,9 +79,9 @@ installation.
 
 ## 3. Test docstrings
 
-- [ ] 3.1 Add a one-line docstring in Google style to every test module, class and function in `tests/` (D4 step
+- [x] 3.1 Add a one-line docstring in Google style to every test module, class and function in `tests/` (D4 step
   5): the behaviour checked, without repeating the name. Verify: `ruff check --select D1 tests` reports nothing.
-- [ ] 3.2 Remove the temporary ignore from `pyproject.toml`, leaving only the D1 adaptation `"tests/*" =
+- [x] 3.2 Remove the temporary ignore from `pyproject.toml`, leaving only the D1 adaptation `"tests/*" =
   ["INP001"]` and the `PTH` entry. Add the test of "No exemptions left for the tests" to
   `tests/test_integration_files.py`. Verify: `python scripts/lint.py` exits 0, and the diff of the ruff sections
   against core's at tag 2026.11.2 shows only D1's adaptations.

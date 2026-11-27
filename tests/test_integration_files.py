@@ -28,14 +28,19 @@ sensor_model = importlib.import_module("hpe_files_pkg.sensor_model")
 
 
 def load(path: Path):
+    """Return the parsed JSON of a file."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 class TestManifest:
+    """The manifest.json of the integration."""
+
     def setup_method(self):
+        """Load the manifest."""
         self.manifest = load(PACKAGE / "manifest.json")
 
     def test_keys(self):
+        """The manifest has the required keys and the expected fixed values."""
         for key in (
             "domain",
             "name",
@@ -59,6 +64,7 @@ class TestManifest:
         assert re.search(r"^\d+\.\d+\.\d+$", self.manifest["version"])
 
     def test_real_repository_values_and_no_placeholders(self):
+        """The manifest names the real repository and has no placeholder text."""
         assert (
             self.manifest["documentation"]
             == "https://github.com/peeter123/ha-heatpump-efficiency"
@@ -84,6 +90,7 @@ class TestManifest:
             assert "PLACEHOLDER" not in text
 
     def test_categories(self):
+        """The categories are valid and list no parent with its own subcategory."""
         # ha-core 2026.11.2 script/hassfest/manifest.py validate_categories: a parent
         # category listed with its own subcategory is an error.
         categories = self.manifest["categories"]
@@ -99,6 +106,7 @@ class TestManifest:
         assert "connectivity" not in self.manifest
 
     def test_readme_status_matches_manifest(self):
+        """The README states the manifest version and quality scale tier."""
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         assert f"Version {self.manifest['version']}." in readme
         assert (
@@ -107,6 +115,7 @@ class TestManifest:
         assert "custom_components/heatpump_efficiency/quality_scale.yaml" in readme
 
     def test_keys_sorted(self):
+        """The manifest keys are sorted as hassfest wants."""
         # ha-core 2026.11.2 script/hassfest/manifest.py sort_manifest: domain, name,
         # then alphabetical order.
         keys = list(self.manifest)
@@ -114,20 +123,27 @@ class TestManifest:
         assert keys[2:] == sorted(keys[2:])
 
     def test_domain_matches_const(self):
+        """The manifest domain equals DOMAIN in const.py."""
         assert f'DOMAIN: Final = "{self.manifest["domain"]}"' in (
             PACKAGE / "const.py"
         ).read_text(encoding="utf-8")
 
 
 class TestHacs:
+    """The hacs.json of the integration."""
+
     def test_minimum_home_assistant_version(self):
+        """hacs.json names the integration and the minimum Home Assistant version."""
         hacs = load(ROOT / "hacs.json")
         assert hacs["name"] == "Heat Pump Efficiency"
         assert hacs["homeassistant"] == "2026.11.0"
 
 
 class TestTranslations:
+    """The English translations against the setup form and the code."""
+
     def setup_method(self):
+        """Load the translations and the config and options steps."""
         self.translations = load(PACKAGE / "translations" / "en.json")
         self.steps = {
             "config": self.translations["config"]["step"]["user"],
@@ -135,6 +151,7 @@ class TestTranslations:
         }
 
     def test_every_step_has_text(self):
+        """Each form step has a title and description, and only setup has a name."""
         for name, step in self.steps.items():
             assert step["title"], name
             assert step["description"], name
@@ -143,6 +160,7 @@ class TestTranslations:
         assert "data" not in self.steps["options"]  # the options form has no name
 
     def test_every_section_and_field_has_text(self):
+        """Every section and field of both forms has a name and a description."""
         expected = dict.fromkeys(val.SERVICES, val.SERVICE_FIELDS)
         expected[val.SERVICE_COOLING] = (
             val.COOLING_FIELDS
@@ -165,6 +183,7 @@ class TestTranslations:
                     assert all(text[key].values()), (name, section, key)
 
     def test_defrost_field_text(self):
+        """The defrost field is explained in the sections that have it."""
         for step in self.steps.values():
             for service in val.DEFROST_SERVICES:
                 text = step["sections"][service]
@@ -182,6 +201,7 @@ class TestTranslations:
         assert "defrost heat statistics" in self.steps["options"]["description"]
 
     def test_config_flow_has_the_defrost_field_in_the_service_sections_only(self):
+        """The config flow adds the defrost field to the service sections only."""
         source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
         assert "schema[probatio.Optional(FIELD_DEFROST_HEAT)] = _STATISTICS" in source
         assert source.count("FIELD_DEFROST_HEAT)") == 1  # only in the service schema
@@ -191,6 +211,7 @@ class TestTranslations:
         assert "SECTION_PLANNED" not in source
 
     def test_no_translation_mentions_a_price_source_or_a_planned_section(self):
+        """No translation mentions a price, planned or cost setting."""
         text = (
             (PACKAGE / "translations" / "en.json").read_text(encoding="utf-8").lower()
         )
@@ -198,6 +219,7 @@ class TestTranslations:
             assert phrase not in text, phrase  # no cost settings
 
     def test_defrost_errors_have_text_and_the_duplicate_placeholder(self):
+        """The defrost errors have text, and the duplicate one its placeholder."""
         for flow in ("config", "options"):
             errors = self.translations[flow]["error"]
             assert "{duplicate}" in errors[val.ERROR_DEFROST_DUPLICATE], flow
@@ -208,9 +230,11 @@ class TestTranslations:
                 assert key in val.ERROR_PRIORITY
 
     def test_season_keys_match_the_pure_season_module(self):
+        """The season date keys of the form equal those of the season module."""
         assert val.SEASON_DATES == seasons.DATE_KEYS
 
     def test_every_selector_option_has_text(self):
+        """Every month and cooling unit option has a translated label."""
         selector = self.translations["selector"]
         assert set(selector) == {"month", "cooling_unit"}
         assert set(selector["month"]["options"]) == {str(m) for m in range(1, 13)}
@@ -219,11 +243,13 @@ class TestTranslations:
             assert all(options["options"].values()), name
 
     def test_config_flow_selectors_use_translation_keys(self):
+        """The config flow selectors use translation keys."""
         source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
         assert 'translation_key="month"' in source
         assert 'translation_key="cooling_unit"' in source
 
     def test_unit_change_step_is_translated_and_explains_the_warning(self):
+        """The unit change step is translated and explains the warning."""
         step = self.translations["options"]["step"]["unit_change"]
         assert step["title"]
         for phrase in (
@@ -240,6 +266,7 @@ class TestTranslations:
         assert 'step_id="unit_change"' in source
 
     def test_already_configured_abort_names_the_shared_statistics(self):
+        """The already-configured abort names the shared statistics."""
         text = self.translations["config"]["abort"]["already_configured"]
         assert "{statistics}" in text
         assert set(re.findall(r"{(\w+)}", text)) == {"statistics"}
@@ -248,6 +275,7 @@ class TestTranslations:
         assert '{"statistics":' in source
 
     def test_every_error_has_text_and_known_placeholders(self):
+        """Every error has text with only known placeholders."""
         known = set(val.PLACEHOLDERS.values())
         for flow in ("config", "options"):
             errors = self.translations[flow]["error"]
@@ -263,6 +291,7 @@ class TestTranslations:
             assert "{" + placeholder + "}" in self.translations["config"]["error"][code]
 
     def test_every_issue_has_a_title_and_a_description_with_known_placeholders(self):
+        """Every repair issue has a title and a description with known placeholders."""
         issues = self.translations["issues"]
         assert set(issues) == set(repairs_model.TRANSLATION_KEYS)
         known = set(repairs_model.PLACEHOLDERS) | {repairs_model.LAST_STATISTICS}
@@ -286,10 +315,12 @@ class TestTranslations:
                 )
 
     def test_plain_ascii_text(self):
+        """The English translation file is plain ASCII."""
         text = (PACKAGE / "translations" / "en.json").read_text(encoding="utf-8")
         assert text.isascii()
 
     def test_validation_errors_use_translated_keys(self):
+        """Every error code that validation returns has a translation."""
         result = val.validate({}, [], "")
         for code in result.errors.values():
             assert code in self.translations["config"]["error"]
@@ -297,14 +328,20 @@ class TestTranslations:
 
 
 class TestLicense:
+    """The LICENSE file."""
+
     def test_mit_licence_with_copyright_line(self):
+        """The licence is MIT with a 2026 copyright line."""
         text = (ROOT / "LICENSE").read_text(encoding="utf-8")
         assert text.startswith("MIT License")
         assert any(line.startswith("Copyright (c) 2026") for line in text.splitlines())
 
 
 class TestWorkflow:
+    """The validate.yml workflow."""
+
     def test_validate_workflow_runs_the_checks_on_push_and_pull_request(self):
+        """The workflow runs hassfest, HACS and the lint script on push and PR."""
         text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
             encoding="utf-8"
         )
@@ -319,6 +356,7 @@ class TestWorkflow:
         assert "unittest discover" not in text
 
     def test_workflow_has_four_jobs_and_a_pinned_home_assistant_tests_job(self):
+        """The workflow has four jobs, and the lint and ha-tests jobs are pinned."""
         text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
             encoding="utf-8"
         )
@@ -356,6 +394,7 @@ class TestWorkflow:
         assert "pytest tests_ha --cov=custom_components.heatpump_efficiency" in section
 
     def test_home_assistant_tests_job_gates_config_flow_coverage_at_100_percent(self):
+        """The Home Assistant tests job requires full config flow coverage."""
         text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
             encoding="utf-8"
         )
@@ -386,6 +425,7 @@ class TestWorkflow:
     def test_tests_import_only_the_standard_library_pytest_and_the_repository(
         self,
     ):
+        """The tests import only the standard library, pytest and the repository."""
         siblings = {path.stem for path in (ROOT / "tests").glob("*.py")}
         allowed = (
             set(sys.stdlib_module_names) | siblings | {"custom_components", "pytest"}
@@ -418,39 +458,60 @@ class TestRuffSettings:
     """The scenarios of the requirement on the ruff settings."""
 
     def setup_method(self):
+        """Read pyproject.toml as text and as parsed settings."""
         self.text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.config = tomllib.loads(self.text)
         self.ruff = self.config["tool"]["ruff"]
 
     def test_header_comment_names_the_source_tag_and_ruff_version(self):
+        """The header comment names the core source, its tag and the ruff version."""
         header = self.text.split("[tool.ruff]", 1)[0]
         assert "Home Assistant core's pyproject.toml" in header
         assert "2026.11.2" in header
         assert "0.17.3" in header
 
     def test_required_version_names_the_version_of_the_lint_entry_point(self):
+        """The required ruff version equals the one the lint script pins."""
         lint = load_lint()
         assert self.ruff["required-version"] == f">={lint.RUFF_VERSION}"
 
     def test_complexity_is_selected_and_limited_at_25(self):
+        """The complexity rules are selected with a limit of 25."""
         assert "C" in self.ruff["lint"]["select"]
         assert self.ruff["lint"]["mccabe"]["max-complexity"] == 25
 
     def test_target_version_matches_the_lint_python(self):
+        """The ruff target version matches the Python of the lint script."""
         lint = load_lint()
         assert self.ruff["target-version"] == "py" + lint.PYTHON.replace(".", "")
 
     def test_pytest_settings_are_shared_by_both_test_folders(self):
+        """The pytest settings sit in pyproject.toml, not in a pytest.ini."""
         options = self.config["tool"]["pytest"]["ini_options"]
         assert options["asyncio_mode"] == "auto"
         assert options["testpaths"] == ["tests"]
         assert not (ROOT / "pytest.ini").exists()
+
+    def test_no_exemptions_left_for_the_tests(self):
+        """No per-file ignore of tests/ names the pytest-style or docstring rules."""
+        ignores = self.ruff["lint"]["per-file-ignores"]
+        paths = [key for key in ignores if key.startswith("tests/")]
+        assert paths
+        exempt = ("PT009", "PT027", "D1")
+        for path in paths:
+            for code in ignores[path]:
+                # A code ignores a rule when it is the rule, a prefix of it, or ALL.
+                assert code != "ALL", (path, code)
+                assert not any(
+                    rule.startswith(code) or code.startswith(rule) for rule in exempt
+                ), (path, code)
 
 
 class TestLintScript:
     """The scenarios of the requirement "One lint entry point"."""
 
     def setup_method(self):
+        """Import the lint script and start with no recorded calls."""
         self.lint = load_lint()
         self.calls = []
 
@@ -479,6 +540,7 @@ class TestLintScript:
         return status, output.getvalue()
 
     def test_pinned_tools_have_exact_versions(self):
+        """The lint script pins every tool and Python at an exact version."""
         text = (ROOT / "scripts" / "lint.py").read_text(encoding="utf-8")
         for name in (
             "RUFF_VERSION",
@@ -490,6 +552,7 @@ class TestLintScript:
         assert re.search(r'(?m)^PYTHON = "3\.14"$', text)
 
     def test_script_uses_only_the_standard_library(self):
+        """The lint script imports only the standard library."""
         tree = ast.parse((ROOT / "scripts" / "lint.py").read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -502,12 +565,14 @@ class TestLintScript:
                 assert root in sys.stdlib_module_names
 
     def test_missing_uv_exits_with_2_and_says_uv_is_needed(self):
+        """Without uv the script exits with 2, says so and runs nothing."""
         status, output = self.run_main(uv=None)
         assert status == 2
         assert "uv is needed" in output
         assert self.calls == []
 
     def test_all_steps_pass_exits_with_0_and_prints_versions(self):
+        """When every step passes the script exits with 0 and prints the pins."""
         status, output = self.run_main()
         assert status == 0
         for text in (
@@ -521,6 +586,7 @@ class TestLintScript:
             assert text in output
 
     def test_steps_run_in_order_from_the_root_with_pinned_tools(self):
+        """The four steps run in order from the root with the pinned tools."""
         self.run_main()
         commands = [" ".join(command) for command, _ in self.calls]
         assert len(commands) == 4
@@ -542,25 +608,30 @@ class TestLintScript:
         assert {cwd for _, cwd in self.calls} == {ROOT}
 
     def test_a_failing_step_exits_with_1_after_running_every_step(self):
+        """A failing step exits with 1 after every step has run."""
         status, output = self.run_main(codes=(1,))
         assert status == 1
         assert len(self.calls) == 4
         assert "ruff check" in output.rsplit("Failed:", 1)[1]
 
     def test_any_non_zero_code_exits_with_1(self):
+        """Any non-zero step code gives exit status 1."""
         status, _ = self.run_main(codes=(0, 0, 2, 0))
         assert status == 1
 
     def test_a_program_that_cannot_start_exits_with_2(self):
+        """A program that cannot start gives exit status 2."""
         status, _ = self.run_main(codes=(OSError("no such program"),))
         assert status == 2
 
     def test_a_program_that_cannot_start_names_the_steps_already_failed(self):
+        """An unstartable program is reported with the steps that failed before."""
         status, output = self.run_main(codes=(1, OSError("no such program")))
         assert status == 2
         assert "Failed before that: ruff check" in output
 
     def test_fix_applies_ruff_fixes_and_the_formatter_first(self):
+        """The fix option runs ruff's fixes and the formatter before the checks."""
         status, _ = self.run_main(argv=["--fix"])
         assert status == 0
         commands = [" ".join(command) for command, _ in self.calls]
@@ -570,6 +641,7 @@ class TestLintScript:
         assert commands[2].endswith("check .")
 
     def test_the_tests_environment_has_no_home_assistant(self):
+        """The tests step does not install Home Assistant."""
         self.run_main()
         tests_command = " ".join(self.calls[2][0])
         assert "homeassistant" not in tests_command
@@ -621,12 +693,14 @@ class TestIcons:
     """The scenario "An icon for every translation key" of the period-efficiency spec."""
 
     def setup_method(self):
+        """Load the icons and the sensor translations."""
         self.icons = load(PACKAGE / "icons.json")["entity"]["sensor"]
         self.translations = load(PACKAGE / "translations" / "en.json")["entity"][
             "sensor"
         ]
 
     def test_keys_equal_the_sensor_translation_keys(self):
+        """The icon keys equal the sensor translation keys of the code."""
         assert set(self.icons) == set(self.translations)
         names = (*sensor_model.eff.PERIODS, *set(sensor_model.SEASONS.values()))
         code_keys = {
@@ -639,11 +713,13 @@ class TestIcons:
         assert set(self.icons) == code_keys
 
     def test_every_icon_is_a_default_mdi_icon(self):
+        """Every icon is a single default mdi icon."""
         for key, icon in self.icons.items():
             assert list(icon) == ["default"], key
             assert icon["default"].startswith("mdi:"), key
 
     def test_one_icon_per_service_and_four_different_icons(self):
+        """Each service has one icon and the four services differ."""
         by_service = {}
         for key, icon in self.icons.items():
             service = max((s for s in val.SERVICES if key.startswith(s + "_")), key=len)
@@ -654,6 +730,7 @@ class TestIcons:
         assert len({next(iter(found)) for found in by_service.values()}) == 4
 
     def test_sensors_set_no_icon_in_code(self):
+        """No module sets an icon in code."""
         for path in PACKAGE.glob("*.py"):
             text = path.read_text(encoding="utf-8")
             assert "_attr_icon" not in text, path.name
@@ -662,7 +739,10 @@ class TestIcons:
 
 
 class TestReadme:
+    """The README against the code and the translations."""
+
     def test_season_and_unit_fields_are_named(self):
+        """The README names the season and unit fields and the season defaults."""
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         for label in (
             "Season dates",
@@ -681,6 +761,7 @@ class TestReadme:
             assert default in readme
 
     def test_defrost_setup_is_documented(self):
+        """The README documents the defrost setup and drops the superseded text."""
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         setup = readme.split("\n## Setup", 1)[1].split("\n## Sensors", 1)[0]
         translations = load(PACKAGE / "translations" / "en.json")
@@ -715,6 +796,7 @@ class TestReadme:
         assert "six sections" not in readme
 
     def test_firmware_entity_ids_are_only_written_as_device_placeholders(self):
+        """Firmware entity IDs are written only with a device placeholder."""
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         assert "sensor.<device>_total_defrost_energy" in readme
         pattern = re.compile(r"sensor\.[a-z0-9_<>]+_total_[a-z_]*energy[a-z0-9_]*")
@@ -729,6 +811,7 @@ class TestReadme:
                 assert found.startswith("sensor.<device>_"), (path.name, found)
 
     def test_every_form_label_is_explained(self):
+        """Every form label is explained in the README."""
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         translations = load(PACKAGE / "translations" / "en.json")
         step = translations["config"]["step"]["user"]
@@ -741,6 +824,7 @@ class TestReadme:
         assert readme.isascii()
 
     def test_every_issue_title_is_named_in_the_troubleshooting(self):
+        """Every repair issue title is named in the troubleshooting section."""
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         assert "## Troubleshooting" in readme
         troubleshooting = readme.split("## Troubleshooting", 1)[1].split("\n## ", 1)[0]
@@ -752,6 +836,7 @@ class TestReadme:
             assert phrase in troubleshooting
 
     def test_examples_never_use_statistics_mean(self):
+        """The YAML examples never use the mean statistic type."""
         readme = (ROOT / "README.md").read_text(encoding="utf-8").replace("\r\n", "\n")
         blocks = re.findall(r"```yaml\n(.*?)```", readme, re.DOTALL)
         assert (

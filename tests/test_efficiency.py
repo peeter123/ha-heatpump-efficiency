@@ -34,10 +34,12 @@ SOURCES = {"month": "month", "day": "day", "five": "5minute", "hour": "hour"}
 
 
 def local(y, m, d, hh=0, mm=0, tz=TZ):
+    """Return a timezone-aware local datetime."""
     return datetime(y, m, d, hh, mm, tzinfo=tz)
 
 
 def row(start: datetime, change, minutes=5):
+    """Return a statistics row that starts at a datetime and lasts some minutes."""
     return {
         "start": start.timestamp(),
         "end": (start.astimezone(UTC) + timedelta(minutes=minutes)).timestamp(),
@@ -46,10 +48,12 @@ def row(start: datetime, change, minutes=5):
 
 
 def month_row(y, m, change):
+    """Return the row of a whole month starting on its 1st."""
     return row(local(y, m, 1), change)
 
 
 def day_row(y, m, d, change):
+    """Return the row of a day starting at local midnight."""
     return row(local(y, m, d), change)
 
 
@@ -72,39 +76,52 @@ def tables(covered=None, window=FAR, read_at=None, **by_source):
 
 
 def sum_for(tables_, ids, ranges):
+    """Return the energy of the statistics over the ranges."""
     return eff.period_energy(tables_, ids, ranges)
 
 
 class TestRatio:
+    """The efficiency as a ratio of two energy changes."""
+
     def test_month_with_both_counters(self):
+        """The ratio of a month with both counters is output over electricity."""
         assert eff.ratio(180.0, 50.0) == 3.6
 
     def test_too_little_electricity_is_unknown(self):
+        """Electricity below the threshold gives no ratio."""
         assert eff.ratio(1.0, 0.05) is None
 
     def test_exactly_the_threshold_is_known(self):
+        """Electricity exactly at the threshold gives a ratio."""
         assert eff.ratio(1.0, 0.1) == 10.0
 
     def test_missing_input_is_unknown(self):
+        """A missing energy gives no ratio."""
         assert eff.ratio(None, 5.0) is None
         assert eff.ratio(5.0, None) is None
 
     def test_time_average_not_used(self):
+        """The ratio of changes is used, not the average of live values."""
         # A live COP sensor averaged 4.0; the ratio of changes is 3.12.
         assert eff.ratio(8.91, 2.86) == 3.12
 
     def test_input_contract_is_kwh(self):
+        """The inputs are in kWh, already converted from Wh."""
         # Home Assistant converts 2500 Wh to 2.5 kWh before it reaches the module.
         assert eff.ratio(10.0, 2500 / 1000) == 4.0
 
 
 class TestPeriodEnergy:
+    """The energy of a period summed from the cached tables."""
+
     NOW = local(2026, 11, 17, 12, 0)
 
     def ranges(self):
+        """Return the period ranges at the fixed time of the tests."""
         return eff.period_ranges(self.NOW, TZ)
 
     def test_several_outputs_summed(self):
+        """The energies of several output statistics are added up."""
         ts = tables(
             month={},
             day={},
@@ -120,6 +137,7 @@ class TestPeriodEnergy:
         assert eff.ratio(out, el) == 4.0
 
     def test_month_to_date_includes_today(self):
+        """Month to date adds the days read to the 5-minute rows of today."""
         ts = tables(
             month={},
             day={
@@ -139,6 +157,7 @@ class TestPeriodEnergy:
         assert summary["electrical_energy"] == 18.5
 
     def test_energies_kept_when_ratio_unknown(self):
+        """The energies are kept when the ratio is unknown."""
         ts = tables(
             month={},
             day={},
@@ -155,6 +174,7 @@ class TestPeriodEnergy:
         assert summary["electrical_energy"] == 0.05
 
     def test_statistic_without_data_is_unknown_not_zero(self):
+        """A statistic without data is unknown, not zero."""
         ts = tables(
             month={},
             day={},
@@ -168,6 +188,7 @@ class TestPeriodEnergy:
             assert summary["electrical_energy"] is None
 
     def test_month_read_failed(self):
+        """A failed month read leaves only the periods that need no month rows."""
         data = {
             "out": [day_row(2026, 11, 3, 60.0), row(local(2026, 11, 17, 8), 2.0)],
             "el": [day_row(2026, 11, 3, 18.0), row(local(2026, 11, 17, 8), 0.5)],
@@ -188,6 +209,7 @@ class TestPeriodEnergy:
         assert figure[eff.PERIOD_ROLLING_12_MONTHS]["efficiency"] is None
 
     def test_month_table_never_read_is_unknown_not_partial(self):
+        """An absent month table makes year to date unknown, not partial."""
         # The month table is absent (not needed when it was last read): year to
         # date must not fall back to the days it can see.
         ts = tables(
@@ -205,6 +227,7 @@ class TestPeriodEnergy:
         )
 
     def test_range_outside_the_read_window_is_unknown(self):
+        """A range outside the window of its table is unknown."""
         day_window = eff.Window(
             local(2026, 11, 13).astimezone(UTC), local(2026, 11, 17).astimezone(UTC)
         )
@@ -220,6 +243,7 @@ class TestPeriodEnergy:
         assert sum_for(ts, ["o"], self.ranges()[eff.PERIOD_TODAY]) == 0.0
 
     def test_uncovered_day_read_is_unknown(self):
+        """A day read that does not cover a statistic is unknown."""
         ts = tables(
             day={"o": [day_row(2026, 11, 3, 9.0)], "e": [day_row(2026, 11, 3, 3.0)]},
             five={
@@ -234,10 +258,12 @@ class TestPeriodEnergy:
         assert sum_for(ts, ["e"], ranges[eff.PERIOD_TODAY]) == 0.5
 
     def test_row_without_change_makes_period_unknown(self):
+        """A row without a change makes the period unknown."""
         ts = tables(month={}, day={}, five={"out": [row(local(2026, 11, 17, 8), None)]})
         assert sum_for(ts, ["out"], self.ranges()[eff.PERIOD_TODAY]) is None
 
     def test_shortly_after_midnight_counts_nothing_twice(self):
+        """Just after midnight no row is counted in both today and the month."""
         now = local(2026, 11, 17, 0, 5)
         ranges = eff.period_ranges(now, TZ)
         ts = tables(
@@ -267,7 +293,10 @@ class TestPeriodEnergy:
 
 
 class TestRange:
+    """The ranges that make up each period."""
+
     def assert_telescopes(self, ranges, start_local, now):
+        """Assert that the ranges join from the start to now without gap or overlap."""
         assert ranges[0].start == start_local.astimezone(UTC)
         for a, b in pairwise(ranges):
             assert a.end == b.start, "gap or overlap"
@@ -276,6 +305,7 @@ class TestRange:
             assert r.start <= r.end
 
     def test_year_to_date_on_first_of_march(self):
+        """Year to date on 1 March is two months, then the 5-minute rows."""
         now = local(2027, 3, 1, 10)
         ranges = eff.period_ranges(now, TZ)
         ytd = ranges[eff.PERIOD_YEAR_TO_DATE]
@@ -287,6 +317,7 @@ class TestRange:
         assert [r.source for r in mtd] == ["5minute"]
 
     def test_first_of_january_has_no_completed_months_or_days(self):
+        """On 1 January only the 5-minute rows count for year and month to date."""
         now = local(2027, 1, 1, 9)
         ranges = eff.period_ranges(now, TZ)
         assert [r.source for r in ranges[eff.PERIOD_YEAR_TO_DATE]] == ["5minute"]
@@ -296,11 +327,13 @@ class TestRange:
         )
 
     def test_rolling_across_leap_day(self):
+        """A rolling year across a leap day still starts on the same date."""
         now = local(2029, 3, 1, 10)
         rolling = eff.period_ranges(now, TZ)[eff.PERIOD_ROLLING_12_MONTHS]
         self.assert_telescopes(rolling, local(2028, 3, 1), now)
 
     def test_rolling_from_29_february(self):
+        """A rolling year from 29 February starts on 28 February a year before."""
         now = local(2028, 2, 29, 10)
         rolling = eff.period_ranges(now, TZ)[eff.PERIOD_ROLLING_12_MONTHS]
         self.assert_telescopes(rolling, local(2027, 2, 28), now)
@@ -308,6 +341,7 @@ class TestRange:
         assert [r.source for r in rolling] == ["day", "month", "day", "5minute"]
 
     def test_rolling_start_in_the_same_month_last_year(self):
+        """A rolling year starts on the same day a year back, in days and months."""
         now = local(2026, 11, 17, 12)
         rolling = eff.period_ranges(now, TZ)[eff.PERIOD_ROLLING_12_MONTHS]
         self.assert_telescopes(rolling, local(2025, 11, 17), now)
@@ -315,6 +349,7 @@ class TestRange:
         assert [r.source for r in rolling] == ["day", "month", "day", "5minute"]
 
     def test_daylight_saving_days_neither_overlap_nor_gap(self):
+        """Clock change days leave no gap or overlap in any period."""
         for now in (
             local(2026, 3, 29, 15),  # clocks go forward (23 hour day)
             local(2026, 3, 30, 1),
@@ -338,16 +373,19 @@ class TestRange:
             assert ranges[eff.PERIOD_TODAY][0].start == today_start.astimezone(UTC)
 
     def test_dst_day_lengths(self):
+        """A day range across a clock change is one hour short or long of whole days."""
         spring = eff.period_ranges(local(2026, 3, 30, 1), TZ)[eff.PERIOD_MONTH_TO_DATE]
         assert spring[0].end - spring[0].start == timedelta(hours=24 * 28 + 23)
         autumn = eff.period_ranges(local(2026, 10, 26, 1), TZ)[eff.PERIOD_MONTH_TO_DATE]
         assert autumn[0].end - autumn[0].start == timedelta(hours=24 * 24 + 25)
 
     def test_naive_now_is_rejected(self):
+        """period_ranges raises ValueError for a naive now."""
         with pytest.raises(ValueError):
             eff.period_ranges(datetime(2026, 11, 17, 12), TZ)
 
     def test_naive_datetime_arguments_are_rejected(self):
+        """Naive datetime arguments are rejected by every function that takes one."""
         now = local(2026, 11, 17, 12)
         naive = datetime(2026, 11, 13)
         with pytest.raises(ValueError):
@@ -372,16 +410,19 @@ class TestDayStart:
     """The statistics day: the first whole UTC hour at or after local midnight."""
 
     def test_whole_hour_zone_starts_at_midnight(self):
+        """In a whole-hour zone the statistics day starts at local midnight."""
         assert eff.day_start(date(2026, 11, 17), TZ) == local(2026, 11, 17).astimezone(
             UTC
         )
 
     def test_half_hour_zone_starts_at_half_past_midnight(self):
+        """In a half-hour zone the statistics day starts at 00:30."""
         start = eff.day_start(date(2026, 11, 17), KOLKATA)
         assert start == local(2026, 11, 17, 0, 30, KOLKATA)
         assert start == datetime(2026, 11, 16, 19, 0, tzinfo=UTC)
 
     def test_nonexistent_midnight_starts_at_first_existing_instant(self):
+        """A day without a midnight starts at its first existing instant."""
         # America/Santiago: on 6 September 2026 the clocks jump from 00:00 to 01:00.
         start = eff.day_start(date(2026, 9, 6), SANTIAGO)
         assert start == local(2026, 9, 6, 1, 0, SANTIAGO)
@@ -391,6 +432,7 @@ class TestDayStart:
         assert ranges[eff.PERIOD_MONTH_TO_DATE][-2].end == start
 
     def test_effective_start_on_nonexistent_midnight(self):
+        """The effective start on a day without midnight is its first instant."""
         jump = datetime(
             2026, 9, 6, 4, 0, tzinfo=UTC
         )  # 01:00 local, the day's first instant
@@ -403,6 +445,7 @@ class TestDayStart:
         )
 
     def test_before_half_past_midnight_today_is_the_previous_day(self):
+        """Before 00:30 in a half-hour zone today is still the previous day."""
         now = local(2026, 11, 17, 0, 20, KOLKATA)
         assert eff.statistics_day(now, KOLKATA) == date(2026, 11, 16)
         starts = eff.period_starts(now, KOLKATA)
@@ -411,6 +454,7 @@ class TestDayStart:
         assert eff.period_starts(later, KOLKATA)[eff.PERIOD_TODAY] == later
 
     def test_half_hour_zone_period_starts(self):
+        """In a half-hour zone every period starts at 00:30."""
         now = local(2026, 11, 17, 12, 0, KOLKATA)
         starts = eff.period_starts(now, KOLKATA)
         assert starts[eff.PERIOD_TODAY] == local(2026, 11, 17, 0, 30, KOLKATA)
@@ -421,6 +465,7 @@ class TestDayStart:
         )
 
     def test_half_hour_zone_effective_start(self):
+        """In a half-hour zone the effective start is the next 00:30."""
         # First hours are whole UTC hours: 18:00 UTC is 23:30 local on the 12th.
         assert eff.effective_start(
             [datetime(2026, 11, 12, 18, 0, tzinfo=UTC)], KOLKATA
@@ -448,6 +493,7 @@ class FakeRecorder:
     BASE = datetime(2024, 6, 1, tzinfo=UTC).timestamp()
 
     def __init__(self, compiled: datetime):
+        """Build the cumulative sums of the 5-minute periods compiled so far."""
         self.compiled = compiled.timestamp()
         slots = int((self.compiled - self.BASE) // 300)
         self.prefix = [0.0]
@@ -455,11 +501,13 @@ class FakeRecorder:
             self.prefix.append(self.prefix[-1] + ((k * 7) % 13 + 1) / 64)
 
     def sum_at(self, ts: float) -> float:
+        """Return the counter sum at an instant on the 5-minute grid."""
         index = (ts - self.BASE) / 300
         assert index == int(index), "not on the 5-minute grid"
         return self.prefix[int(index)]
 
     def read(self, period: str, start: datetime, end: datetime, tz) -> list[dict]:
+        """Return the rows of a table for a window, as the recorder builds them."""
         if period in ("5minute", "hour"):
             step = 300 if period == "5minute" else 3600
             first = math.ceil(start.timestamp() / step) * step
@@ -557,6 +605,7 @@ class TestHalfHourTimeZone:
     )
 
     def expected_start(self, day: date, tz, hm) -> float:
+        """Return the timestamp of a local day start given as hour and minute."""
         return datetime(day.year, day.month, day.day, *hm, tzinfo=tz).timestamp()
 
     @pytest.mark.parametrize(
@@ -565,6 +614,7 @@ class TestHalfHourTimeZone:
         ids=[f"{tz}-{now.isoformat()}" for tz, now, _hm in CASES],
     )
     def test_periods_match_home_assistant_rows(self, tz, now, hm):
+        """Every period energy equals the counter change since the period start."""
         recorder, compiled, ts = simulate(now, tz)
         local_now = now.astimezone(tz)
         today = local_now.date()
@@ -585,6 +635,7 @@ class TestHalfHourTimeZone:
             assert eff.period_energy(ts, ["x"], ranges[period]) == truth, period
 
     def test_daily_and_monthly_points_match_home_assistant_rows(self):
+        """Daily and monthly point energies equal the counter changes."""
         now = local(2026, 11, 17, 12, 0, KOLKATA)
         recorder, _compiled, ts = simulate(now, KOLKATA)
         hm = (0, 30)
@@ -603,6 +654,7 @@ class TestHalfHourTimeZone:
             ) - recorder.sum_at(start)
 
     def test_nonexistent_midnight_matches_home_assistant_rows(self):
+        """On a day without a midnight the period energies still match the counter."""
         now = local(2026, 9, 6, 12, 0, SANTIAGO)
         recorder, compiled, ts = simulate(now, SANTIAGO)
         ranges = eff.period_ranges(now, SANTIAGO)
@@ -621,6 +673,7 @@ class TestHalfHourTimeZone:
             assert eff.period_energy(ts, ["x"], ranges[period]) == truth, period
 
     def test_first_update_of_the_day_waits_for_half_past_midnight(self):
+        """The first day read waits for 00:30 in a half-hour zone."""
         ids = ["x"]
         read_at = local(2026, 11, 16, 23, 55, KOLKATA)
         windows = eff.history_windows(read_at, KOLKATA)
@@ -652,6 +705,7 @@ class TestHalfHourTimeZone:
         assert actions.first_hours
 
     def test_new_month_waits_for_half_past_midnight_on_the_first(self):
+        """The month read waits for 00:30 on the 1st in a half-hour zone."""
         ids = ["x"]
         read_at = local(2026, 11, 30, 23, 0, KOLKATA)
         windows = eff.history_windows(read_at, KOLKATA)
@@ -681,6 +735,7 @@ class TestHalfHourTimeZone:
         assert "month" in actions.tables
 
     def test_day_read_before_the_hour_is_compiled_is_retried(self):
+        """A day read before the last hour is compiled does not cover the statistic."""
         # A day read whose window ends at 00:30 local, made before the 5-minute
         # row ending at 00:30 exists, does not cover the statistic.
         now = local(2026, 11, 17, 0, 30, KOLKATA) + timedelta(seconds=5)
@@ -692,20 +747,27 @@ class TestHalfHourTimeZone:
 
 
 class TestEffectiveStart:
+    """The effective start from the first statistics hours."""
+
     def test_history_from_midnight(self):
+        """History from midnight starts that day."""
         assert eff.effective_start([local(2026, 11, 13, 0)], TZ) == local(2026, 11, 13)
 
     def test_history_starting_mid_day(self):
+        """History from mid-day starts the next day."""
         assert eff.effective_start([local(2026, 11, 13, 14)], TZ) == local(2026, 11, 14)
 
     def test_latest_first_hour_wins_and_epoch_input_works(self):
+        """The latest first hour wins, and epoch seconds are accepted."""
         hours = [local(2026, 1, 1, 0).timestamp(), local(2026, 11, 13, 0)]
         assert eff.effective_start(hours, TZ) == local(2026, 11, 13)
 
     def test_no_hours(self):
+        """Without first hours there is no effective start."""
         assert eff.effective_start([], TZ) is None
 
     def test_first_hour_not_known_yet_counts_as_starting_now(self):
+        """An unknown first hour counts as starting now."""
         # A statistic with rows but no hourly row yet: its service has not begun until tomorrow.
         now = local(2026, 11, 17, 9, 20)
         assert eff.effective_start([local(2025, 1, 1), None], TZ, now) == local(
@@ -717,6 +779,7 @@ class TestEffectiveStart:
             eff.effective_start([None], TZ)
 
     def test_year_to_date_limited_by_electrical_history(self):
+        """Year to date starts where the shortest history starts."""
         now = local(2026, 11, 17, 12)
         effective = eff.effective_start([local(2026, 1, 1), local(2026, 11, 13)], TZ)
         ranges = eff.period_ranges(now, TZ, effective)
@@ -733,6 +796,7 @@ class TestEffectiveStart:
         )
 
     def test_history_from_mid_day_starts_next_midnight(self):
+        """History from mid-day starts year to date at the next midnight."""
         now = local(2026, 11, 17, 12)
         effective = eff.effective_start([local(2026, 11, 13, 14)], TZ)
         assert eff.period_starts(now, TZ, effective)[eff.PERIOD_YEAR_TO_DATE] == local(
@@ -740,12 +804,14 @@ class TestEffectiveStart:
         )
 
     def test_effective_start_mid_month_uses_whole_months_after_it(self):
+        """A mid-month start reads days to month end, then whole months."""
         now = local(2026, 11, 17, 12)
         ranges = eff.period_ranges(now, TZ, local(2026, 3, 10))[eff.PERIOD_YEAR_TO_DATE]
         assert [r.source for r in ranges] == ["day", "month", "day", "5minute"]
         assert ranges[0].end == local(2026, 4, 1).astimezone(UTC)
 
     def test_limited_period_not_begun(self):
+        """A period that starts after now has not begun and is unknown."""
         now = local(2026, 11, 17, 12)
         effective = eff.effective_start([local(2026, 11, 17, 9)], TZ)  # tomorrow 00:00
         ranges = eff.period_ranges(now, TZ, effective)
@@ -758,6 +824,7 @@ class TestEffectiveStart:
         assert all(v is None for v in eff.period_starts(now, TZ, effective).values())
 
     def test_history_starting_today_midnight_is_known(self):
+        """History from today's midnight gives every period its 5-minute rows."""
         now = local(2026, 11, 17, 12)
         effective = eff.effective_start([local(2026, 11, 17, 0)], TZ)
         ranges = eff.period_ranges(now, TZ, effective)
@@ -771,6 +838,7 @@ class TestBackfill:
     IDS = ["o", "e"]
 
     def history(self):
+        """Return the month rows and the day rows of the history."""
         months, days = {"o": [], "e": []}, {"o": [], "e": []}
         for m in range(1, 11):
             months["o"].append(month_row(2026, m, 36.0))
@@ -781,9 +849,11 @@ class TestBackfill:
         return months, days
 
     def read(self, source, windows, rows_, now):
+        """Return a table read that covers every statistic."""
         return eff.TableRead(source, windows[source], rows_, frozenset(self.IDS), now)
 
     def test_year_to_date_unknown_until_months_are_read_again(self):
+        """Year to date stays unknown until the month table is read again."""
         months, days = self.history()
         setup = local(2026, 11, 17, 12)
         effective = local(2026, 11, 13)
@@ -851,6 +921,7 @@ class TestBackfill:
         ).tables == {"5minute"}
 
     def test_moved_window_is_read_again_the_same_day(self):
+        """A cached table whose window moved is read again the same day."""
         # A reload is not needed: a cached day table whose window no longer
         # contains the needed one is read again.
         now = local(2026, 11, 17, 12)
@@ -870,9 +941,12 @@ class TestBackfill:
 
 
 class TestLaggingStatistic:
+    """A statistic that lags behind the others."""
+
     IDS = ["o", "e"]
 
     def test_unknown_and_retried_until_covered(self):
+        """A lagging statistic gives unknown periods, and its reads are retried."""
         now = local(2026, 11, 18, 0, 0) + timedelta(seconds=30)
         needed = eff.history_windows(now, TZ)
         five_rows = {
@@ -980,6 +1054,7 @@ class TestExternalStatistic:
     ]
 
     def reads(self):
+        """Return the windows and the tables read for the statistics of the tests."""
         windows = eff.history_windows(self.NOW, TZ, [None], hourly=True)
         start = local(2026, 11, 17)
         five, hour = {}, {}
@@ -1009,12 +1084,14 @@ class TestExternalStatistic:
         }
 
     def test_hour_window_only_when_needed(self):
+        """The hour window exists only when an hourly-only statistic needs it."""
         windows = eff.history_windows(self.NOW, TZ, [None], hourly=True)
         assert windows["hour"] == windows["5minute"]
         assert "hour" not in eff.history_windows(self.NOW, TZ, [None])
         assert eff.hourly_only(self.METADATA) == {"ov_el"}
 
     def test_overall_ends_at_14_00_and_other_services_at_14_15(self):
+        """Overall ends at its last hourly row, the others at their 5-minute rows."""
         _windows, ts = self.reads()
         hourly = eff.hourly_only(self.METADATA)
         assert eff.reads_hourly(["ov_out", "ov_el"], hourly)
@@ -1047,12 +1124,14 @@ class TestExternalStatistic:
         assert series[-1]["start"] == local(2026, 11, 17).isoformat()
 
     def test_last_row_ends_use_the_table_each_statistic_is_read_from(self):
+        """The last row end comes from the table that the statistic is read from."""
         _, ts = self.reads()
         ends = eff.last_row_ends(["heat_out", "ov_el"], {"ov_el"}, ts)
         assert ends["heat_out"] == local(2026, 11, 17, 14, 15).timestamp()
         assert ends["ov_el"] == local(2026, 11, 17, 14, 0).timestamp()
 
     def test_missing_hourly_rows_make_every_period_unknown(self):
+        """Missing hourly rows make every period unknown."""
         _, ts = self.reads()
         ts["hour"].rows["ov_el"].clear()
         end = eff.coverage_end(["ov_out", "ov_el"], {"ov_el"}, ts, self.NOW)
@@ -1072,6 +1151,7 @@ class TestExternalStatistic:
         )
 
     def test_coverage_end_before_today_leaves_completed_days(self):
+        """Coverage to today's start keeps the days; any earlier end gives no ranges."""
         midnight = local(2026, 11, 17)
         ranges = eff.period_ranges(
             local(2026, 11, 17, 0, 20), TZ, end=midnight, hourly=True
@@ -1127,6 +1207,7 @@ class TestCoverageEnd:
         }
 
     def test_sensor_offline_cuts_both_counters(self):
+        """An offline sensor cuts the output and the electricity at the same end."""
         # Spec "Sensor offline": no electricity statistics since 08:20 and it is 10:20.
         ts = self.reads()
         end = eff.coverage_end(["out", "el"], [], ts, self.NOW)
@@ -1162,6 +1243,7 @@ class TestCoverageEnd:
         }
 
     def test_healthy_service_ends_at_its_last_five_minute_row(self):
+        """A healthy service ends at its last 5-minute row, at most now."""
         ts = self.reads(el_until=(10, 20))
         assert eff.coverage_end(["out", "el"], [], ts, self.NOW) == local(
             2026, 11, 17, 10, 20
@@ -1173,6 +1255,7 @@ class TestCoverageEnd:
     def test_statistic_without_a_row_in_the_today_window_makes_the_service_unknown(
         self,
     ):
+        """A statistic without a row today makes its service unknown."""
         ts = self.reads()
         ts["5minute"].rows["el"].clear()
         end = eff.coverage_end(["out", "el"], [], ts, self.NOW)
@@ -1203,6 +1286,7 @@ class TestCoverageEnd:
         assert eff.coverage_end(["out", "el"], [], {}, self.NOW) == eff.NO_COVERAGE
 
     def test_coverage_end_at_todays_start_keeps_the_completed_days(self):
+        """A coverage end at today's start keeps the completed days."""
         now = local(2026, 11, 17, 0, 20)
         ranges = eff.period_ranges(now, TZ, end=local(2026, 11, 17))
         assert [r.source for r in ranges[eff.PERIOD_MONTH_TO_DATE]] == [
@@ -1215,9 +1299,12 @@ class TestCoverageEnd:
 
 
 class TestSeries:
+    """The daily and monthly points and the windows that read them."""
+
     NOW = local(2026, 11, 17, 12)
 
     def monthly_rows(self, last=(2026, 10)):
+        """Return the month rows from November 2025 up to the given month."""
         months, y, m = {"o": [], "e": []}, 2025, 11
         while (y, m) <= last:
             months["o"].append(month_row(y, m, 36.0))
@@ -1226,6 +1313,7 @@ class TestSeries:
         return months
 
     def test_cooling_month_without_electricity_has_no_point(self):
+        """A month without electricity has no monthly point."""
         months = self.monthly_rows()
         months["e"][2] = month_row(2026, 1, 0.0)  # January: no electricity
         months["o"][2] = month_row(2026, 1, 0.0)
@@ -1241,6 +1329,7 @@ class TestSeries:
         assert all(p["efficiency"] > 0 for p in series)
 
     def test_same_month_last_year_and_this_month_so_far(self):
+        """The monthly series runs from the same month last year to this month."""
         ts = tables(
             month=self.monthly_rows(),
             day={"o": [day_row(2026, 11, 1, 36.0)], "e": [day_row(2026, 11, 1, 10.0)]},
@@ -1258,6 +1347,7 @@ class TestSeries:
         assert set(series[0]) == {"start", "efficiency", "estimated"}
 
     def test_estimated_marks_around_the_switch_over(self):
+        """Months before the measured-since date are marked as estimated."""
         now = local(2026, 12, 5, 12)
         months = self.monthly_rows(last=(2026, 11))
         ts = tables(
@@ -1275,6 +1365,7 @@ class TestSeries:
         assert not marks[local(2026, 12, 1).isoformat()]
 
     def test_month_starting_at_the_measured_history(self):
+        """A month that starts at the measured history is not estimated."""
         # Measured since 13 November and effective start 13 November: the
         # covered start of November and of year to date is not before it.
         effective = local(2026, 11, 13)
@@ -1297,6 +1388,7 @@ class TestSeries:
         )
 
     def test_daily_estimated_marks(self):
+        """Days before the measured-since date are marked as estimated."""
         days = {"o": [], "e": []}
         for d in range(1, 17):
             days["o"].append(day_row(2026, 11, d, 8.0))
@@ -1311,6 +1403,7 @@ class TestSeries:
         assert not marks[local(2026, 11, 16).isoformat()]
 
     def test_no_date_no_marks(self):
+        """Without a measured-since date nothing is marked as estimated."""
         ts = tables(
             month=self.monthly_rows(),
             day={"o": [day_row(2026, 11, 3, 36.0)], "e": [day_row(2026, 11, 3, 10.0)]},
@@ -1325,12 +1418,14 @@ class TestSeries:
         assert not eff.includes_estimated(local(2026, 1, 1), None, TZ)
 
     def test_includes_estimated_for_period_sensors(self):
+        """A period is estimated when it starts before the measured-since date."""
         since = date(2026, 11, 13)
         assert eff.includes_estimated(local(2026, 1, 1), since, TZ)
         assert not eff.includes_estimated(local(2026, 11, 13), since, TZ)
         assert not eff.includes_estimated(None, since, TZ)
 
     def test_series_limited_by_effective_start(self):
+        """The series start at the effective start."""
         effective = local(2026, 11, 13)
         days = {"o": [], "e": []}
         for d in range(1, 17):
@@ -1344,10 +1439,12 @@ class TestSeries:
         assert monthly[0]["efficiency"] == 4.0  # only days 13..16 count
 
     def test_series_lengths(self):
+        """The daily plan has 31 days and the monthly plan 24 months."""
         assert len(eff.daily_plan(self.NOW, TZ, None)) == 31
         assert len(eff.monthly_plan(self.NOW, TZ, None)) == 24
 
     def test_history_windows_cover_all_ranges(self):
+        """The history windows cover the month, day and 5-minute ranges."""
         windows = eff.history_windows(self.NOW, TZ)
         assert windows["month"].start == local(2024, 12, 1).astimezone(UTC)
         assert windows["month"].end == local(2026, 11, 1).astimezone(UTC)
@@ -1359,11 +1456,13 @@ class TestSeries:
         assert "hour" not in windows
 
     def test_history_windows_today_reaches_back_three_hours_after_midnight(self):
+        """Just after midnight the 5-minute window reaches back three hours."""
         now = local(2026, 11, 17, 0, 5)
         windows = eff.history_windows(now, TZ)
         assert windows["5minute"].start == now.astimezone(UTC) - timedelta(hours=3)
 
     def test_history_windows_with_a_recent_effective_start(self):
+        """A recent effective start needs no month window."""
         windows = eff.history_windows(self.NOW, TZ, [local(2026, 11, 13)])
         assert "month" not in windows
         assert windows["day"] == eff.Window(
@@ -1371,6 +1470,7 @@ class TestSeries:
         )
 
     def test_history_windows_with_a_mid_month_effective_start_in_an_old_month(self):
+        """A mid-month start in an old month reads its days from the day table."""
         windows = eff.history_windows(self.NOW, TZ, [local(2025, 2, 10)])
         # February 2025 is cut by the effective start: its days come from the day table.
         assert windows["day"].start == local(2025, 2, 10).astimezone(UTC)
@@ -1379,15 +1479,19 @@ class TestSeries:
         assert windows["month"].end == local(2026, 11, 1).astimezone(UTC)
 
     def test_history_windows_union_over_services(self):
+        """The windows are the union over the services."""
         windows = eff.history_windows(self.NOW, TZ, [local(2026, 11, 13), None])
         assert windows["month"].start == local(2024, 12, 1).astimezone(UTC)
         assert windows["day"].start == local(2025, 11, 17).astimezone(UTC)
 
 
 class TestCache:
+    """What the coordinator reads again at each update."""
+
     IDS = ["o", "e"]
 
     def cache_at(self, read_at, covered=None, rows_=None, window_now=None):
+        """Return a day and month cache read at the given time."""
         windows = eff.history_windows(window_now or read_at, TZ)
         covered = frozenset(self.IDS if covered is None else covered)
         rows_ = {"o": [], "e": []} if rows_ is None else rows_
@@ -1397,15 +1501,18 @@ class TestCache:
         }
 
     def actions(self, cache, first_hours_read_at, now):
+        """Return the cache actions for an update at the given time."""
         return eff.cache_actions(
             cache, first_hours_read_at, eff.history_windows(now, TZ), self.IDS, now, TZ
         )
 
     def test_setup_reads_everything(self):
+        """The setup reads every table and the first hours."""
         a = self.actions({}, None, local(2026, 11, 17, 12))
         assert a == eff.CacheActions(frozenset({"month", "day", "5minute"}), True)
 
     def test_ten_updates_in_a_day_read_history_once(self):
+        """Ten updates in a day read the history once."""
         cache, first_read, history_reads = {}, None, 0
         for i in range(10):
             now = local(2026, 11, 17, 1, 0) + timedelta(minutes=5 * i)
@@ -1419,22 +1526,26 @@ class TestCache:
         assert history_reads == 1
 
     def test_first_update_after_midnight_reads_the_completed_day(self):
+        """The first update after midnight reads the completed day."""
         previous = local(2026, 11, 16, 23, 55)
         a = self.actions(self.cache_at(previous), previous, local(2026, 11, 17, 0, 5))
         assert a.tables == {"day", "5minute"}
         assert a.first_hours
 
     def test_first_of_month_also_reads_the_completed_month(self):
+        """The first update of a month also reads the completed month."""
         previous = local(2026, 11, 30, 23, 55)
         a = self.actions(self.cache_at(previous), previous, local(2026, 12, 1, 0, 5))
         assert a.tables == {"day", "month", "5minute"}
 
     def test_missed_updates_still_read_the_new_month(self):
+        """Missed updates still read the new month."""
         previous = local(2026, 11, 30, 12)
         a = self.actions(self.cache_at(previous), previous, local(2026, 12, 2, 9))
         assert a.tables == {"day", "month", "5minute"}
 
     def test_failed_cache_read_is_retried(self):
+        """A failed cache read is retried at every update."""
         now = local(2026, 11, 17, 0, 5)
         cache = self.cache_at(now)
         cache["day"] = eff.TableRead("day", cache["day"].window, None, frozenset(), now)
@@ -1442,6 +1553,7 @@ class TestCache:
             assert self.actions(cache, now, later).tables == {"day", "5minute"}
 
     def test_uncovered_read_is_retried(self):
+        """A read that does not cover every statistic is retried."""
         now = local(2026, 11, 17, 0, 5)
         cache = self.cache_at(now, covered={"o"})
         assert self.actions(cache, now, now + timedelta(minutes=5)).tables == {
@@ -1451,6 +1563,7 @@ class TestCache:
         }
 
     def test_moved_window_is_read_again(self):
+        """A table whose window no longer holds the needed one is read again."""
         now = local(2026, 11, 17, 12)
         cache = self.cache_at(now)
         later = now + timedelta(minutes=5)
@@ -1475,6 +1588,7 @@ class TestCache:
         }
 
     def test_new_mapped_statistic_is_read(self):
+        """A newly mapped statistic is read."""
         now = local(2026, 11, 17, 12)
         cache = self.cache_at(now)
         later = now + timedelta(minutes=5)
@@ -1483,6 +1597,7 @@ class TestCache:
         assert actions.tables == {"day", "month", "5minute"}
 
     def test_hour_table_read_at_every_update_when_needed(self):
+        """The hour table is read at every update when needed."""
         now = local(2026, 11, 17, 12)
         needed = eff.history_windows(now, TZ, hourly=True)
         assert eff.cache_actions(
@@ -1490,6 +1605,7 @@ class TestCache:
         ).tables == {"5minute", "hour"}
 
     def test_hour_table_follows_the_hourly_only_statistics_within_a_day(self):
+        """The hour table is read exactly when the needed windows hold it."""
         # The metadata is read at every update (design D4), so whether a service reads hourly can
         # change within a day: the hour table is asked for exactly when the needed windows hold it,
         # without a first-hours refresh or a history read.
@@ -1506,12 +1622,14 @@ class TestCache:
             assert actions == eff.CacheActions(frozenset(expected), False), minutes
 
     def test_local_midnight_decides_not_utc(self):
+        """The local midnight decides the day read, not the UTC one."""
         # 23:30 UTC on 16 Nov is 00:30 local on 17 Nov in Amsterdam.
         previous = datetime(2026, 11, 16, 22, 30, tzinfo=UTC)  # 23:30 local, 16 Nov
         now = datetime(2026, 11, 16, 23, 30, tzinfo=UTC)
         assert "day" in self.actions(self.cache_at(previous), previous, now).tables
 
     def test_crossing_utc_midnight_without_local_midnight_reads_no_day(self):
+        """Crossing UTC midnight without local midnight reads no day."""
         previous = datetime(2026, 11, 16, 23, 30, tzinfo=UTC)  # 00:30 local, 17 Nov
         now = datetime(2026, 11, 17, 0, 30, tzinfo=UTC)  # 01:30 local, 17 Nov
         a = self.actions(self.cache_at(previous), previous, now)
@@ -1520,9 +1638,12 @@ class TestCache:
 
 
 class TestHealth:
+    """The health of a statistic from its metadata and last row."""
+
     NOW = local(2026, 11, 17, 12)
 
     def meta(self, **kw):
+        """Return the metadata of a healthy statistic with changes applied."""
         base = {
             "statistic_id": "sensor.x",
             "has_sum": True,
@@ -1534,33 +1655,41 @@ class TestHealth:
         return base
 
     def check(self, metadata, last_end):
+        """Return the health of the statistic given its metadata and last row end."""
         return eff.health(["sensor.x"], metadata, {"sensor.x": last_end}, self.NOW)[
             "sensor.x"
         ]
 
     def test_ok(self):
+        """A recent row of an energy statistic with a sum is healthy."""
         assert self.check([self.meta()], self.NOW - timedelta(minutes=10)) == "ok"
 
     def test_missing(self):
+        """A statistic without metadata is missing."""
         assert self.check([], self.NOW - timedelta(minutes=10)) == "missing"
 
     def test_no_sum(self):
+        """A statistic without a sum is reported as having no sum."""
         assert self.check([self.meta(has_sum=False)], self.NOW) == "no_sum"
 
     def test_power_unit_is_not_energy(self):
+        """A statistic in power is not energy."""
         meta = self.meta(unit_class="power", statistics_unit_of_measurement="W")
         assert self.check([meta], self.NOW) == "not_energy"
 
     def test_power_without_sum_is_not_energy(self):
+        """A power statistic without a sum is reported as not energy."""
         meta = self.meta(
             unit_class="power", statistics_unit_of_measurement="W", has_sum=False
         )
         assert self.check([meta], self.NOW) == "not_energy"
 
     def test_stale_after_three_hours(self):
+        """A last row three hours old is stale."""
         assert self.check([self.meta()], self.NOW - timedelta(hours=3)) == "stale"
 
     def test_two_hours_after_the_row_ended_is_not_yet_stale(self):
+        """A row up to two hours old is healthy, a second older is stale."""
         assert self.check([self.meta()], self.NOW - timedelta(hours=2)) == "ok"
         assert (
             self.check([self.meta()], self.NOW - timedelta(hours=2, seconds=1))
@@ -1568,20 +1697,24 @@ class TestHealth:
         )
 
     def test_no_row_read_is_stale(self):
+        """A statistic without any row read is stale."""
         assert self.check([self.meta()], None) == "stale"
 
     def test_epoch_seconds_accepted(self):
+        """The last row end can be given in epoch seconds."""
         assert (
             self.check([self.meta()], (self.NOW - timedelta(hours=3)).timestamp())
             == "stale"
         )
 
     def test_recovered(self):
+        """A stale statistic is healthy again after a new row."""
         meta = [self.meta()]
         assert self.check(meta, self.NOW - timedelta(hours=3)) == "stale"
         assert self.check(meta, self.NOW - timedelta(minutes=5)) == "ok"
 
     def test_external_statistic_measured_from_its_last_hourly_row(self):
+        """An external statistic is judged from its last hourly row."""
         meta = [self.meta(source="tibber")]
         hour_rows = {
             "sensor.x": [
@@ -1606,61 +1739,80 @@ class TestHealth:
 
 
 class TestCorrectedRatio:
+    """The ratio with the defrost heat subtracted from the output."""
+
     def test_corrected_day(self):
+        """The corrected ratio of a day is lower than the uncorrected one."""
         assert eff.corrected_ratio(36.8, 1.84, 9.2) == 3.8
         assert eff.ratio(36.8, 9.2) == 4.0  # uncorrected
 
     def test_corrected_month(self):
+        """The corrected ratio of a month subtracts the defrost heat."""
         assert eff.corrected_ratio(180.0, 5.0, 50.0) == 3.5
 
     def test_defrost_arriving_converted_from_watt_hours(self):
+        """The defrost heat arrives in kWh, already converted from Wh."""
         # Home Assistant converts 2000 Wh to 2.0 kWh before it reaches the module.
         assert eff.corrected_ratio(10.0, 2000 / 1000, 2.0) == 4.0
 
     def test_overall_subtracts_both_sections(self):
+        """Overall subtracts the defrost heat of both sections."""
         assert eff.corrected_ratio(50.0, 2.0 + 0.5, 12.5) == 3.8
 
     def test_defrost_exceeding_the_output_is_unknown(self):
+        """A defrost heat above the output gives no ratio."""
         assert eff.corrected_ratio(1.0, 1.2, 0.5) is None
 
     def test_corrected_output_of_exactly_zero_is_unknown(self):
+        """A corrected output of exactly zero gives no ratio."""
         assert eff.corrected_ratio(1.0, 1.0, 0.5) is None
 
     def test_small_corrected_output_is_a_figure(self):
+        """A small positive corrected output still gives a ratio."""
         assert eff.corrected_ratio(1.0, 0.8, 0.5) == 0.4
 
     def test_too_little_electricity_is_unknown(self):
+        """Electricity below the threshold gives no corrected ratio."""
         assert eff.corrected_ratio(2.0, 0.1, 0.05) is None
 
     def test_exactly_the_electrical_threshold_is_known(self):
+        """Electricity exactly at the threshold gives a corrected ratio."""
         assert eff.corrected_ratio(1.5, 0.5, 0.1) == 10.0
 
     def test_missing_energy_is_unknown(self):
+        """A missing energy gives no corrected ratio."""
         assert eff.corrected_ratio(None, 1.0, 5.0) is None
         assert eff.corrected_ratio(5.0, None, 5.0) is None
         assert eff.corrected_ratio(5.0, 1.0, None) is None
 
     def test_factor_applies_before_rounding(self):
+        """The unit factor acts on the unrounded corrected ratio."""
         assert eff.corrected_ratio(2.0, 1.0, 3.0, 3.0) == 1.0
 
     def test_zero_defrost_equals_the_uncorrected_ratio(self):
+        """Without defrost heat the corrected ratio equals the plain one."""
         assert eff.corrected_ratio(36.8, 0.0, 9.2) == eff.ratio(36.8, 9.2)
 
 
 class TestDefrostStart:
+    """The instant from which a defrost statistic counts."""
+
     NOW = local(2026, 11, 22, 12, 20)
 
     def test_the_end_of_the_latest_first_hour_not_moved_to_a_day_start(self):
+        """The start is the end of the latest first hour, not a day start."""
         start = eff.defrost_start(
             [local(2026, 11, 18, 10), local(2026, 11, 2, 8)], self.NOW
         )
         assert start == local(2026, 11, 18, 11)
 
     def test_epoch_seconds_are_accepted(self):
+        """The first hours can be given in epoch seconds."""
         start = eff.defrost_start([local(2026, 11, 18, 10).timestamp()], self.NOW)
         assert start == local(2026, 11, 18, 11)
 
     def test_a_none_hour_counts_as_now_without_an_added_hour(self):
+        """An unknown first hour counts as now, without the added hour."""
         assert eff.defrost_start([None], self.NOW) == self.NOW
         assert eff.defrost_start([local(2026, 11, 18, 10), None], self.NOW) == self.NOW
         # The end of a known hour later than now would win; a None hour never gets the extra hour.
@@ -1669,20 +1821,25 @@ class TestDefrostStart:
         ) == local(2026, 11, 22, 12, 20)
 
     def test_no_hours_is_none(self):
+        """Without first hours there is no defrost start."""
         assert eff.defrost_start([], self.NOW) is None
 
     def test_defrost_partial_compares_the_covered_start(self):
+        """A period is partial when it starts before the defrost start."""
         start = local(2026, 11, 18, 10)
         assert eff.defrost_partial(local(2026, 11, 18), start)
         assert not eff.defrost_partial(local(2026, 11, 19), start)
         assert not eff.defrost_partial(start, start)
 
     def test_defrost_partial_is_false_without_a_start(self):
+        """Without a covered start or a defrost start nothing is partial."""
         assert not eff.defrost_partial(None, local(2026, 11, 18, 10))
         assert not eff.defrost_partial(local(2026, 11, 18), None)
 
 
 class TestDefrostSummary:
+    """The period summary when defrost statistics are mapped."""
+
     DAY = eff.Range("day", local(2026, 11, 16), local(2026, 11, 17))
 
     def day(self, **energies):
@@ -1692,6 +1849,7 @@ class TestDefrostSummary:
         )
 
     def test_corrected_period_with_its_inputs(self):
+        """A corrected period has the efficiency, its uncorrected value and inputs."""
         summary = eff.period_summary(
             self.day(o=36.8, d=1.84, e=9.2), [self.DAY], ["o"], ["e"], defrost_ids=["d"]
         )
@@ -1702,6 +1860,7 @@ class TestDefrostSummary:
         assert summary["electrical_energy"] == 9.2
 
     def test_month_of_180_kwh(self):
+        """180 kWh output, 5 kWh defrost heat and 50 kWh electricity give 3.5."""
         summary = eff.period_summary(
             self.day(o=180.0, d=5.0, e=50.0),
             [self.DAY],
@@ -1712,6 +1871,7 @@ class TestDefrostSummary:
         assert summary["efficiency"] == 3.5
 
     def test_defrost_energy_is_rounded_to_three_decimals(self):
+        """The defrost energy is rounded to three decimals."""
         summary = eff.period_summary(
             self.day(o=36.8, d=1.84049, e=9.2),
             [self.DAY],
@@ -1724,6 +1884,7 @@ class TestDefrostSummary:
     def test_period_starting_before_the_defrost_rows_subtracts_only_the_later_rows(
         self,
     ):
+        """Only the defrost rows that exist are subtracted."""
         # 16 to 18 November; the defrost statistic has a row only for 18 November (0 kWh before it).
         ts = tables(
             month={},
@@ -1740,6 +1901,7 @@ class TestDefrostSummary:
         assert summary["efficiency_uncorrected"] == 4.0
 
     def test_overall_subtracts_both_sections(self):
+        """Several defrost statistics are added up and subtracted."""
         ts = self.day(o=50.0, d1=2.0, d2=0.5, e=12.5)
         summary = eff.period_summary(
             ts, [self.DAY], ["o"], ["e"], defrost_ids=["d1", "d2"]
@@ -1748,6 +1910,7 @@ class TestDefrostSummary:
         assert summary["defrost_energy"] == 2.5
 
     def test_defrost_exceeding_the_output_keeps_the_defrost_energy(self):
+        """A defrost above the output has no efficiency but keeps its energies."""
         summary = eff.period_summary(
             self.day(o=1.0, d=1.2, e=0.5), [self.DAY], ["o"], ["e"], defrost_ids=["d"]
         )
@@ -1758,12 +1921,14 @@ class TestDefrostSummary:
         assert summary["electrical_energy"] == 0.5
 
     def test_small_corrected_output(self):
+        """A small corrected output still gives an efficiency."""
         summary = eff.period_summary(
             self.day(o=1.0, d=0.8, e=0.5), [self.DAY], ["o"], ["e"], defrost_ids=["d"]
         )
         assert summary["efficiency"] == 0.4
 
     def test_too_little_electricity_keeps_the_energies(self):
+        """Too little electricity gives no efficiency but keeps the energies."""
         summary = eff.period_summary(
             self.day(o=2.0, d=0.1, e=0.05), [self.DAY], ["o"], ["e"], defrost_ids=["d"]
         )
@@ -1773,6 +1938,7 @@ class TestDefrostSummary:
         assert summary["electrical_energy"] == 0.05
 
     def test_defrost_statistic_without_data_is_unknown_not_uncorrected(self):
+        """Defrost without data makes the efficiency unknown, never the uncorrected."""
         ts = tables(
             month={},
             day={"o": [day_row(2026, 11, 16, 36.8)], "e": [day_row(2026, 11, 16, 9.2)]},
@@ -1784,6 +1950,7 @@ class TestDefrostSummary:
         assert summary["efficiency_uncorrected"] == 4.0
 
     def test_defrost_not_covered_by_the_read_is_unknown(self):
+        """A defrost statistic not covered by the read makes the period unknown."""
         ts = tables(
             month={},
             day={
@@ -1798,6 +1965,7 @@ class TestDefrostSummary:
         assert summary["defrost_energy"] is None
 
     def test_period_that_has_not_begun(self):
+        """A period that has not begun has only unknown values."""
         summary = eff.period_summary({}, None, ["o"], ["e"], defrost_ids=["d"])
         assert summary == {
             "output_energy": None,
@@ -1808,6 +1976,7 @@ class TestDefrostSummary:
         }
 
     def test_no_defrost_keys_without_defrost_ids(self):
+        """Without defrost statistics the summary has no defrost keys."""
         ts = self.day(o=36.8, e=9.2)
         for kwargs in ({}, {"defrost_ids": []}, {"defrost_ids": ()}):
             summary = eff.period_summary(ts, [self.DAY], ["o"], ["e"], **kwargs)
@@ -1821,9 +1990,12 @@ class TestDefrostSummary:
 
 
 class TestDefrostSeries:
+    """The daily and monthly points when defrost statistics are mapped."""
+
     DEFROST_START = local(2026, 11, 18, 10)
 
     def test_daily_points_are_corrected_and_marked(self):
+        """Daily points are corrected and marked partial before the defrost start."""
         now = local(2026, 11, 20, 12)
         # The defrost statistic starts on 18 November 10:00: it has no row for 17 November (0 kWh there).
         days = {"o": [], "e": [], "d": []}
@@ -1856,6 +2028,7 @@ class TestDefrostSeries:
         assert set(series[0]) == {"start", "efficiency", "estimated", "defrost_partial"}
 
     def test_no_daily_point_when_the_corrected_figure_is_unknown(self):
+        """A day with an unknown corrected figure has no point."""
         now = local(2026, 11, 17, 12)
         days = {
             "o": [day_row(2026, 11, 15, 1.0), day_row(2026, 11, 16, 1.0)],
@@ -1877,6 +2050,7 @@ class TestDefrostSeries:
         ]
 
     def test_no_daily_point_when_the_defrost_statistic_has_no_data(self):
+        """Without defrost data there are no daily points."""
         now = local(2026, 11, 17, 12)
         ts = tables(
             month={},
@@ -1888,6 +2062,7 @@ class TestDefrostSeries:
         assert eff.daily_series(ts, ["o"], ["e"], now, TZ, defrost_ids=["d"]) == []
 
     def test_monthly_points_before_the_defrost_start_are_partial(self):
+        """Monthly points before the defrost start are partial."""
         now = local(2026, 12, 5, 12)
         ids = ("o", "e", "d")
         # The defrost statistic has no row before 18 November 2026: no October month row (0 kWh there).
@@ -1923,6 +2098,7 @@ class TestDefrostSeries:
         ]  # October: uncorrected
 
     def test_monthly_partial_uses_the_covered_start(self):
+        """A month is partial by its covered start, not its first day."""
         # An effective start inside the defrost counter's history: the covered start is 19 November.
         now = local(2026, 11, 22, 12)
         days = {
@@ -1943,6 +2119,7 @@ class TestDefrostSeries:
         assert [p["defrost_partial"] for p in series] == [False]
 
     def test_without_defrost_ids_the_points_are_unchanged(self):
+        """Without defrost statistics the points keep their fields."""
         now = local(2026, 11, 17, 12)
         ts = tables(
             month={},
@@ -1969,6 +2146,7 @@ class TestDefrostSeries:
                 assert set(point) == {"start", "efficiency", "estimated"}
 
     def test_an_unknown_defrost_start_marks_nothing(self):
+        """An unknown defrost start marks no point as partial."""
         now = local(2026, 11, 17, 12)
         ts = tables(
             month={},
@@ -1994,6 +2172,7 @@ class TestDefrostBaseline:
     FIRSTS = {"d": (FIRST, 500.0)}
 
     def test_scenario_sum_that_does_not_start_at_zero(self):
+        """A first sum that does not start at zero is corrected by the baseline."""
         # The day row of 18 November holds the first hour: 502.0 kWh (the sum at the end of the
         # day against 0); the baseline 500.0 leaves the 2.0 kWh of that day after the first hour.
         ts = tables(
@@ -2017,6 +2196,7 @@ class TestDefrostBaseline:
         assert plain["efficiency"] is None
 
     def test_month_to_date_and_year_to_date_subtract_2_kwh(self):
+        """Month and year to date subtract the 2 kWh after the first hour."""
         now = local(2026, 11, 22, 12)
         days = {"o": [], "e": [], "d": []}
         for day in range(1, 22):
@@ -2042,6 +2222,7 @@ class TestDefrostBaseline:
             assert eff.period_energy(ts, ["d"], ranges[period]) == 502.0, period
 
     def test_the_first_hour_row_of_the_hour_table_adds_0(self):
+        """The first hour row of the hour table adds nothing."""
         # An hourly service: the first hour row carries the first sum (500.0), the next one its change.
         ts = tables(
             hour={
@@ -2058,6 +2239,7 @@ class TestDefrostBaseline:
         assert eff.period_energy(ts, ["d"], [later], self.FIRSTS) == 0.4
 
     def test_a_5_minute_row_inside_the_first_hour_counts_0(self):
+        """A 5-minute row inside the first hour counts as zero."""
         five = [
             row(self.FIRST, 0.1),
             row(self.FIRST + timedelta(minutes=55), 0.1),
@@ -2074,6 +2256,7 @@ class TestDefrostBaseline:
         )
 
     def test_only_the_defrost_statistics_given_are_reduced(self):
+        """Only the statistics that have a first sum are reduced."""
         ts = tables(
             day={
                 "o": [day_row(2026, 11, 18, 36.8)],
@@ -2086,21 +2269,25 @@ class TestDefrostBaseline:
         assert eff.period_energy(ts, ["o", "d"], [rng], self.FIRSTS) == 38.8
 
     def test_a_range_that_does_not_contain_the_first_hour_is_unchanged(self):
+        """A range without the first hour is left as it is."""
         ts = tables(day={"d": [day_row(2026, 11, 19, 1.5)]}, month={})
         rng = eff.Range("day", local(2026, 11, 19), local(2026, 11, 20))
         assert eff.period_energy(ts, ["d"], [rng], self.FIRSTS) == 1.5
 
     def test_the_month_row_holding_the_first_hour_is_reduced(self):
+        """The month row that holds the first hour is reduced."""
         ts = tables(month={"d": [month_row(2026, 11, 505.0)]}, day={})
         rng = eff.Range("month", local(2026, 11, 1), local(2026, 12, 1))
         assert eff.period_energy(ts, ["d"], [rng], self.FIRSTS) == 5.0
 
     def test_a_row_without_a_change_stays_unknown(self):
+        """A row without a change stays unknown."""
         ts = tables(day={"d": [day_row(2026, 11, 18, None)]}, month={})
         rng = eff.Range("day", local(2026, 11, 18), local(2026, 11, 19))
         assert eff.period_energy(ts, ["d"], [rng], self.FIRSTS) is None
 
     def test_the_daily_point_of_the_first_day_is_corrected_from_the_baseline(self):
+        """The daily point of the first day is corrected from the baseline."""
         now = local(2026, 11, 20, 12)
         days = {
             "o": [],
@@ -2141,6 +2328,7 @@ class TestDefrostBaseline:
         ]  # (73.6 - 3.84) / 18.4 with 2.0 + 1.84
 
     def test_without_defrost_ids_the_firsts_change_nothing(self):
+        """Without defrost statistics the first sums change nothing."""
         ts = tables(
             month={},
             day={"o": [day_row(2026, 11, 18, 36.8)], "e": [day_row(2026, 11, 18, 9.2)]},
@@ -2159,7 +2347,10 @@ class TestDefrostBaseline:
 
 
 class TestImport:
+    """The imports of efficiency.py."""
+
     def test_only_standard_library_is_imported(self):
+        """efficiency.py imports only the standard library."""
         tree = ast.parse(MODULE_PATH.read_text(encoding="utf-8"))
         modules = set()
         for node in ast.walk(tree):

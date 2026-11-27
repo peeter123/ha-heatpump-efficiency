@@ -27,10 +27,12 @@ class FakeIssueRegistry:
     """In-memory ``IssueRegistry``: issues by (domain, issue_id)."""
 
     def __init__(self):
+        """Start with no issues and no known config entries."""
         self.issues: dict[tuple[str, str], SimpleNamespace] = {}
         self.known_entries: set[str] = set()
 
     def clear_config_entry(self, config_entry_id: str) -> None:
+        """Delete the issues linked to a removed config entry."""
         # helpers/issue_registry.py IssueRegistry.async_clear_config_entry, called by
         # config_entries.py ConfigEntries._async_clean_up when an entry is removed.
         for key in [
@@ -40,6 +42,8 @@ class FakeIssueRegistry:
 
 
 class Severity(StrEnum):
+    """The issue severities that the stubbed registry offers."""
+
     CRITICAL = "critical"
     ERROR = "error"
     WARNING = "warning"
@@ -120,16 +124,19 @@ class Stats(te.FakeStats):
     """The fake reader with statistics that can be renamed (missing) or changed in metadata."""
 
     def __init__(self):
+        """Start with no missing statistics and no metadata overrides."""
         super().__init__()
         self.missing: set[str] = set()
         self.meta: dict[str, dict] = {}
 
     async def read(self, source, statistic_ids, window, units, types):
+        """Read the rows of the statistics that are not missing."""
         return await super().read(
             source, set(statistic_ids) - self.missing, window, units, types
         )
 
     async def metadata(self, statistic_ids):
+        """Return the metadata of the present statistics, with overrides."""
         rows = await super().metadata(set(statistic_ids) - self.missing)
         return [{**row, **self.meta.get(row["statistic_id"], {})} for row in rows]
 
@@ -138,6 +145,7 @@ class Rig:
     """One entry: the real engine, the real glue and the fake registry."""
 
     def __init__(self, mapping=None, stats=None, entry_id=ENTRY_ID, registry=None):
+        """Build the fake statistics, the registry, the glue and an engine state."""
         self.registry = registry or FakeIssueRegistry()
         self.registry.known_entries.add(entry_id)
         self.glue = _load_glue(self.registry)
@@ -149,6 +157,7 @@ class Rig:
         self.state = engine.EngineState()
 
     def update(self, now: datetime = NOW):
+        """Run one engine update and hand its result to the issue glue."""
         self.stats.now = now
         result = te.asyncio.run(
             engine.async_update(self.state, self.mapping, self.stats, now, te.TZ)
@@ -159,6 +168,7 @@ class Rig:
         return result
 
     def issues(self) -> dict[str, tuple[str, dict]]:
+        """Return the issues of this entry as issue id to key and placeholders."""
         return {
             issue_id: (i.translation_key, i.translation_placeholders)
             for (domain, issue_id), i in self.registry.issues.items()
@@ -168,6 +178,7 @@ class Rig:
 
 
 def make_rig(**kwargs) -> Rig:
+    """Return a rig whose mapped statistics are all healthy and current."""
     stats = Stats()
     for sid, rate in (
         (te.OUT_H, 2.0),
@@ -182,6 +193,7 @@ def make_rig(**kwargs) -> Rig:
 
 
 def iid(statistic_id: str, entry_id: str = ENTRY_ID) -> str:
+    """Return the issue id of a statistic of an entry."""
     return f"{entry_id}_{statistic_id}"
 
 
@@ -189,11 +201,13 @@ class TestScenario:
     """The scenarios of the statistics-health spec, through the engine, the plan and the glue."""
 
     def test_healthy_entry_has_no_issue(self):
+        """A healthy entry raises no issue."""
         rig = make_rig()
         rig.update()
         assert rig.issues() == {}
 
     def test_statistic_renamed(self):
+        """A missing statistic raises a missing issue with its placeholders."""
         rig = make_rig()
         rig.stats.missing.add(te.EL_H)
         rig.update()
@@ -204,6 +218,7 @@ class TestScenario:
         assert list(rig.issues()) == [iid(te.EL_H)]
 
     def test_issue_is_a_non_fixable_warning_with_the_config_entry(self):
+        """An issue is a non-fixable warning linked to the config entry."""
         rig = make_rig()
         rig.stats.missing.add(te.EL_H)
         rig.update()
@@ -213,18 +228,21 @@ class TestScenario:
         assert issue.config_entry_id == ENTRY_ID
 
     def test_unit_changed_to_watt(self):
+        """A statistic whose unit became power raises a not-energy issue."""
         rig = make_rig()
         rig.stats.meta[te.OUT_H] = {"unit_class": "power", "has_sum": False}
         rig.update()
         assert rig.issues()[iid(te.OUT_H)][0] == "statistic_not_energy"
 
     def test_no_sum(self):
+        """A statistic without a sum raises a no-sum issue."""
         rig = make_rig()
         rig.stats.meta[te.OUT_H] = {"has_sum": False}
         rig.update()
         assert rig.issues()[iid(te.OUT_H)][0] == "statistic_no_sum"
 
     def test_sensor_stopped_for_three_hours(self):
+        """A statistic three hours behind is stale and shows its last time."""
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 3 * te.H
         rig.update()
@@ -234,12 +252,14 @@ class TestScenario:
         assert placeholders["last_statistics"] == "2026-11-17 08:20"
 
     def test_two_hours_behind_is_not_stale(self):
+        """A statistic under two hours behind is not stale."""
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 110 * 60
         rig.update()
         assert rig.issues() == {}
 
     def test_sensor_stopped_has_exactly_the_placeholders_of_its_text(self):
+        """A stale issue carries exactly the placeholders its text uses."""
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 3 * te.H
         rig.update()
@@ -247,6 +267,7 @@ class TestScenario:
         assert set(placeholders) == {"heat_pump", "statistic_id", "last_statistics"}
 
     def test_stale_without_any_row_in_the_window(self):
+        """A statistic with no row in the window gets the no-rows stale key."""
         # Design D7: no row today or in the last 3 hours has its own key, without a last time.
         rig = make_rig()
         rig.stats.series[te.EL_H] = te.Series(te.utc(2099, 1, 1), 0.5)  # no row yet
@@ -256,6 +277,7 @@ class TestScenario:
         assert placeholders == {"heat_pump": TITLE, "statistic_id": te.EL_H}
 
     def test_stale_key_depends_on_the_staleness_window(self):
+        """The stale key depends on whether the last row is inside the window."""
         # The window is today or the last 3 hours, whichever is longer. At 11:20 local it is today:
         # a last row 5 hours ago is in it, so its time is shown.
         rig = make_rig()
@@ -273,6 +295,7 @@ class TestScenario:
         assert rig.issues()[iid(te.EL_H)][0] == "statistic_stale_no_rows"
 
     def test_switches_between_the_stale_keys(self):
+        """An issue switches between the stale keys as the last row ages."""
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 150 * 60
         rig.update(
@@ -286,6 +309,7 @@ class TestScenario:
         assert "last_statistics" not in placeholders
 
     def test_problem_resolved_when_the_statistic_updates_again(self):
+        """A stale issue goes when the statistic updates again."""
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 3 * te.H
         rig.update()
@@ -295,6 +319,7 @@ class TestScenario:
         assert rig.issues() == {}
 
     def test_problem_resolved_when_the_statistic_exists_again(self):
+        """A missing issue goes when the statistic exists again."""
         rig = make_rig()
         rig.stats.missing.add(te.EL_H)
         rig.update()
@@ -312,6 +337,7 @@ class TestScenario:
         assert result.services["heating"].periods["year_to_date"].efficiency == 4.0
 
     def test_problem_resolved_when_the_mapping_changes_to_a_valid_statistic(self):
+        """An issue goes when the mapping changes to a valid statistic."""
         rig = make_rig()
         rig.stats.missing.add(te.EL_H)
         rig.update()
@@ -323,6 +349,7 @@ class TestScenario:
         assert rig.issues() == {}
 
     def test_statistic_renamed_after_setup(self):
+        """A statistic renamed after setup raises a missing issue."""
         # Healthy at setup, renamed afterwards: missing at the next check, not stopped.
         rig = make_rig()
         rig.update()
@@ -334,6 +361,7 @@ class TestScenario:
         }
 
     def test_unit_changed_to_watt_after_setup(self):
+        """A unit change after setup raises an issue and restoring it clears it."""
         rig = make_rig()
         rig.update()
         rig.stats.meta[te.OUT_H] = {"unit_class": "power", "has_sum": False}
@@ -346,6 +374,7 @@ class TestScenario:
         assert rig.issues() == {}
 
     def test_one_issue_per_statistic_and_update_replaces(self):
+        """Each statistic has one issue that every update replaces."""
         rig = make_rig(mapping=te.MAPPING)
         rig.stats.missing.update({te.EL_H, te.EL_W})
         rig.update()
@@ -354,6 +383,7 @@ class TestScenario:
         assert len(rig.registry.issues) == 2
 
     def test_integration_removed(self):
+        """Removing a config entry deletes its issues and no others."""
         registry = FakeIssueRegistry()
         mine = make_rig(registry=registry)
         other = make_rig(registry=registry, entry_id=OTHER_ENTRY_ID)
@@ -368,6 +398,7 @@ class TestScenario:
         assert set(other.issues()) == {iid(te.EL_H, OTHER_ENTRY_ID)}
 
     def test_glue_only_touches_its_own_entry(self):
+        """An update of one entry leaves the issues of another entry alone."""
         registry = FakeIssueRegistry()
         other = make_rig(registry=registry, entry_id=OTHER_ENTRY_ID)
         other.stats.missing.add(te.EL_H)
@@ -377,6 +408,7 @@ class TestScenario:
         assert set(other.issues()) == {iid(te.EL_H, OTHER_ENTRY_ID)}
 
     def test_external_statistic_stale_from_the_hourly_table(self):
+        """An external statistic is judged stale from its hourly rows."""
         mapping = {"overall": te.MAPPING_OVERALL["overall"]}
         rig = make_rig(mapping=mapping)
         rig.stats.series[te.EL_A].lag = 3 * te.H + 30 * 60
@@ -391,6 +423,7 @@ class TestScenario:
         assert iid(te.OUT_A) not in issues
 
     def test_external_statistic_two_hours_behind_is_healthy(self):
+        """An external statistic less than two hours behind is healthy."""
         rig = make_rig(mapping={"overall": te.MAPPING_OVERALL["overall"]})
         rig.stats.series[te.EL_A].lag = 30 * 60
         rig.update()
@@ -398,7 +431,10 @@ class TestScenario:
 
 
 class TestConservative:
+    """Failed reads never produce a false issue and never drop a true one."""
+
     def test_failed_metadata_read_raises_no_false_missing_issue(self):
+        """A failed metadata read raises no missing issue."""
         rig = make_rig()
 
         async def boom(ids):
@@ -410,6 +446,7 @@ class TestConservative:
         assert rig.issues() == {}
 
     def test_existing_issues_stay_until_the_metadata_is_known(self):
+        """Existing issues stay until the metadata is read again."""
         rig = make_rig()
         rig.stats.missing.add(te.EL_H)
         rig.update()
@@ -428,6 +465,7 @@ class TestConservative:
         assert rig.issues() == {}
 
     def test_failed_metadata_read_mid_day_keeps_the_issues_of_the_last_metadata(self):
+        """A failed metadata read keeps the issues of the last known metadata."""
         rig = make_rig()
         rig.stats.missing.add(te.EL_H)
         rig.update()
@@ -446,6 +484,7 @@ class TestConservative:
         assert rig.issues() == {}
 
     def test_repairs_failure_never_fails_the_update(self, caplog):
+        """A failure creating an issue is logged and does not fail the update."""
         # The entry was removed while the update waited on a read: Home Assistant's
         # async_create_issue raises for the unknown config entry. The glue logs it.
         rig = make_rig()
@@ -461,6 +500,7 @@ class TestConservative:
         assert rig.issues() == {}
 
     def test_failed_5minute_read_is_not_reported_as_stopped(self):
+        """A failed 5-minute read does not mark a statistic as stopped."""
         rig = make_rig()
         rig.update()
         rig.stats.fail.add("5minute")
@@ -468,6 +508,7 @@ class TestConservative:
         assert rig.issues() == {}
 
     def test_failed_read_keeps_an_existing_stale_issue(self):
+        """A failed read keeps an existing stale issue."""
         rig = make_rig()
         rig.stats.series[te.EL_H].lag = 3 * te.H
         rig.update()
@@ -480,11 +521,13 @@ class TestDefrostIssue:
     """The defrost statistics get the issues of any mapped statistic (design D9)."""
 
     def rig(self, mapping):
+        """Return a rig with the mapping and a healthy defrost statistic."""
         rig = make_rig(mapping=mapping)
         rig.stats.series[te.DEF_H] = te.Series(te.FIRST, 0.1)
         return rig
 
     def test_mapped_defrost_statistic_is_missing(self):
+        """A missing mapped defrost statistic raises a missing issue."""
         rig = self.rig(te.MAPPING_DEFROST)
         rig.stats.missing.add(te.DEF_H)
         rig.update()
@@ -492,12 +535,14 @@ class TestDefrostIssue:
         assert rig.issues()[iid(te.DEF_H)][1]["statistic_id"] == te.DEF_H
 
     def test_mapped_defrost_statistic_is_stale(self):
+        """A stale mapped defrost statistic raises a stale issue."""
         rig = self.rig(te.MAPPING_DEFROST)
         rig.stats.series[te.DEF_H].lag = 3 * te.H
         rig.update()
         assert rig.issues()[iid(te.DEF_H)][0] == "statistic_stale"
 
     def test_defrost_in_an_unconfigured_section_is_checked_through_overall(self):
+        """A defrost statistic of an unconfigured section is checked via overall."""
         mapping = {
             "heating": {"defrost_heat": [te.DEF_H]},
             "overall": te.MAPPING_OVERALL["overall"],
@@ -508,6 +553,7 @@ class TestDefrostIssue:
         assert rig.issues()[iid(te.DEF_H)][0] == "statistic_missing"
 
     def test_defrost_in_an_unconfigured_section_is_stale_through_overall(self):
+        """A stale defrost statistic of an unconfigured section is reported."""
         mapping = {
             "heating": {"defrost_heat": [te.DEF_H]},
             "overall": te.MAPPING_OVERALL["overall"],
@@ -518,6 +564,7 @@ class TestDefrostIssue:
         assert rig.issues()[iid(te.DEF_H)][0] == "statistic_stale"
 
     def test_defrost_that_corrects_nothing_is_not_checked(self):
+        """A defrost statistic that corrects no service is not checked."""
         rig = self.rig(
             {
                 "heating": {"defrost_heat": [te.DEF_H]},
@@ -543,6 +590,7 @@ class TestPlan:
         skip=(),
         last=None,
     ):
+        """Return the plan for the given health with fixed entry and title."""
         return model.plan_issues(
             "e",
             "Pump",
@@ -556,12 +604,14 @@ class TestPlan:
         )
 
     def test_create_and_delete(self):
+        """The plan creates issues for problems and deletes those that are healthy."""
         plan = self.plan({"a": "ok", "b": "missing"}, existing=["e_a"])
         assert [s.issue_id for s in plan.create] == ["e_b"]
         assert plan.create[0].translation_key == "statistic_missing"
         assert plan.delete == ("e_a",)
 
     def test_every_health_maps_to_a_key_with_its_placeholders(self):
+        """Each health maps to its translation key and its placeholders."""
         ts = datetime(2026, 11, 17, 7, 20, tzinfo=te.UTC).timestamp()
         for health, key in model.ISSUE_KEYS.items():
             for last in (ts, None):
@@ -576,6 +626,7 @@ class TestPlan:
                 assert set(spec.placeholders) == expected, (health, last)
 
     def test_issue_key(self):
+        """The issue key follows the health and the presence of a last row."""
         assert model.issue_key("stale", 1.0) == "statistic_stale"
         assert model.issue_key("stale", None) == "statistic_stale_no_rows"
         assert model.issue_key("missing", None) == "statistic_missing"
@@ -583,24 +634,29 @@ class TestPlan:
         assert len(set(model.TRANSLATION_KEYS)) == 5
 
     def test_unmapped_issue_is_deleted_even_before_the_metadata_is_known(self):
+        """An issue of an unmapped statistic is deleted without metadata."""
         plan = self.plan({}, existing=["e_gone", "e_a"], metadata_ok=False)
         assert (plan.create, plan.delete) == ((), ("e_gone",))
 
     def test_skipped_statistic_keeps_its_issue(self):
+        """A skipped statistic keeps its issue."""
         plan = self.plan({"a": "stale", "b": "ok"}, existing=["e_a"], skip=["a"])
         assert (plan.create, plan.delete) == ((), ())
 
     def test_statistic_without_health_keeps_its_issue(self):
+        """A statistic without a health keeps its issue."""
         plan = self.plan({}, existing=["e_a"])
         assert (plan.create, plan.delete) == ((), ())
 
     def test_unchecked_only_for_stale_with_a_failed_table(self):
+        """Only stale statistics of a failed table count as unchecked."""
         health = {"x": "stale", "y": "stale", "z": "missing"}
         errors = {"5minute": "boom", "hour": None}
         assert model.unchecked(health, {"y"}, errors) == {"x"}
         assert model.unchecked(health, {"y"}, {"hour": "boom"}) == {"y"}
 
     def test_last_statistics_time_is_local(self):
+        """The last statistics time is shown in local time."""
         ts = datetime(2026, 11, 17, 7, 20, tzinfo=te.UTC).timestamp()
         spec = self.plan({"a": "stale", "b": "ok"}, last={"a": ts}).create[0]
         assert spec.placeholders["last_statistics"] == "2026-11-17 08:20"

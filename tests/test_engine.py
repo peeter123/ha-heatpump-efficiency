@@ -35,6 +35,7 @@ H = 3600
 
 
 def utc(*args) -> datetime:
+    """Return a UTC datetime from its components."""
     return datetime(*args, tzinfo=UTC)
 
 
@@ -85,6 +86,7 @@ class Series:
         lag: int = 0,
         base: float = 0.0,
     ):
+        """Store the first hour, rate, source, lag and base of the counter."""
         self.first = first.timestamp()
         self.rate = rate
         self.source = source
@@ -99,6 +101,7 @@ class FakeStats:
     """The reader of the engine over synthetic statistics."""
 
     def __init__(self):
+        """Start with no series, no logged reads and no failing tables."""
         self.now: datetime = utc(2026, 11, 17, 10, 20, 30)
         self.series: dict[str, Series] = {}
         self.log: list[dict] = []
@@ -108,6 +111,7 @@ class FakeStats:
 
     # --- the reader interface -------------------------------------------
     async def read(self, source, statistic_ids, window, units, types):
+        """Log the read and return the rows of the statistics, or raise on failure."""
         self.log.append(
             {
                 "source": source,
@@ -131,6 +135,7 @@ class FakeStats:
         }
 
     async def metadata(self, statistic_ids):
+        """Log the read and return the metadata of the known statistics."""
         self.meta_log.append(frozenset(statistic_ids))
         return [
             {
@@ -215,6 +220,7 @@ class FakeStats:
 
 
 def kwh(rate: float, start: float, end: float) -> float:
+    """Return the energy of a counter with a constant rate between two instants."""
     return round(rate * (end - start) / H, 3)
 
 
@@ -230,6 +236,7 @@ MAPPING_OVERALL = {**MAPPING, "overall": {"output": [OUT_A], "electricity": [EL_
 
 
 def make_stats() -> FakeStats:
+    """Return fake statistics with the heating, hot water and overall series."""
     stats = FakeStats()
     for sid, rate in (
         (OUT_H, 2.0),
@@ -247,6 +254,7 @@ class Harness:
     """Runs updates against a fake reader and the engine state of one entry."""
 
     def __init__(self, stats: FakeStats, mapping=MAPPING):
+        """Store the reader and the mapping, and start with an empty engine state."""
         self.stats = stats
         self.mapping = mapping
         self.state = engine.EngineState()
@@ -296,10 +304,13 @@ class Harness:
 
 
 def sources(calls) -> set[str]:
+    """Return the tables that the logged reads used."""
     return {c["source"] for c in calls}
 
 
 class TestReadPlan:
+    """The reads of every update and the figures that follow from them."""
+
     def assert_plan(self, harness, now, expect_main, expect_first):
         """Run one update and check its reads against the expectation and the D4 protocol.
 
@@ -322,6 +333,7 @@ class TestReadPlan:
         return result, main, first
 
     def assert_unknown(self, service):
+        """Assert that every period and series of the service is unknown."""
         for period, p in service.periods.items():
             assert (
                 p.efficiency,
@@ -332,6 +344,7 @@ class TestReadPlan:
         assert (service.daily, service.monthly) == ([], [])
 
     def test_setup_normal_update_and_ten_updates(self):
+        """Setup reads everything once, and later updates read today only."""
         stats = make_stats()
         h = Harness(stats)
         now = utc(2026, 11, 17, 10, 20, 30)
@@ -366,6 +379,7 @@ class TestReadPlan:
             assert h.metadata_reads == 1, step
 
     def test_first_update_after_midnight_and_first_of_month(self):
+        """A new day reads the day table, and a new month the month table too."""
         h = Harness(make_stats())
         self.assert_plan(
             h, utc(2026, 11, 17, 22, 55, 30), {"5minute", "month", "day"}, True
@@ -405,6 +419,7 @@ class TestReadPlan:
         )
 
     def test_moved_effective_start(self):
+        """A backfill moves the effective start at the next day's refresh."""
         stats = make_stats()
         stats.series[EL_H] = Series(
             utc(2026, 11, 13, 14), 0.5
@@ -450,6 +465,7 @@ class TestReadPlan:
         )
 
     def test_retried_uncovered_read(self):
+        """A day read that does not cover a statistic is retried until it does."""
         stats = make_stats()
         h = Harness(stats)
         self.assert_plan(
@@ -483,6 +499,7 @@ class TestReadPlan:
         self.assert_plan(h, now3 + timedelta(minutes=5), {"5minute"}, False)
 
     def test_failed_read_gives_unknown_periods_and_is_retried(self):
+        """A failed read gives unknown periods and is retried at the next update."""
         stats = make_stats()
         stats.fail = {"month"}
         h = Harness(stats)
@@ -507,6 +524,7 @@ class TestReadPlan:
         assert h.state.errors["month"] is None
 
     def test_first_hours_failure_makes_the_service_unknown_and_is_retried(self):
+        """A failed first-hours read makes services unknown and is retried."""
         stats = make_stats()
         stats.fail_single = True
         h = Harness(stats)
@@ -526,6 +544,7 @@ class TestReadPlan:
         assert h.state.errors["first_hours"] is None
 
     def test_every_read_passes_kwh_units_and_change(self):
+        """Every read asks for kWh and the change."""
         stats = make_stats()
         h = Harness(stats, MAPPING_OVERALL)
         self.assert_plan(
@@ -541,6 +560,7 @@ class TestReadPlan:
             assert call["types"] == {"change"}, call["source"]
 
     def test_external_statistic_is_read_hourly(self):
+        """An external statistic is read from the hour table, ending at its last row."""
         stats = make_stats()
         h = Harness(stats, MAPPING_OVERALL)
         result, main, _ = self.assert_plan(
@@ -561,6 +581,7 @@ class TestReadPlan:
         assert overall.efficiency == 4.0
 
     def test_new_statistic_without_an_hourly_row_is_unknown_until_the_next_day(self):
+        """A new statistic without an hourly row is unknown until the next day."""
         # Spec "New statistic without an hourly row": the electricity statistic starts today at
         # 09:00 local and has only 5-minute rows when the integration is set up at 09:20.
         stats = make_stats()
@@ -597,6 +618,7 @@ class TestReadPlan:
         ]
 
     def test_new_statistic_without_any_row_stays_unknown(self):
+        """A new statistic without any row keeps its service unknown."""
         stats = make_stats()
         stats.series[EL_H] = Series(utc(2099, 1, 1), 0.5)  # no rows at all
         h = Harness(stats, {"heating": MAPPING["heating"]})
@@ -607,6 +629,7 @@ class TestReadPlan:
         self.assert_unknown(result.services["heating"])
 
     def test_every_service_is_unknown_until_the_metadata_has_been_read(self):
+        """Services wait for the metadata; a failed reread keeps the last good one."""
         stats = make_stats()
         read_metadata = stats.metadata
 
@@ -651,6 +674,7 @@ class TestReadPlan:
             assert result.services["heating"].periods["month_to_date"].efficiency == 4.0
 
     def test_hourly_only_statistic_changes_within_the_day(self):
+        """A statistic that changes between external and recorder changes the reads."""
         # The metadata is read at every update, so an external statistic that becomes a recorder
         # statistic (or the reverse) changes the reads at the next update: the hour table is
         # dropped and read again through needed_windows and cache_actions, without a first-hours
@@ -687,6 +711,7 @@ class TestReadPlan:
         )
 
     def test_sensor_offline_cuts_every_period_of_its_service(self):
+        """An offline sensor cuts every period of its service at its last row."""
         # Spec "Sensor offline": the heating electricity has no statistics since 08:20 local
         # and it is 10:20 local.
         stats = make_stats()
@@ -718,6 +743,7 @@ class TestReadPlan:
         )
 
     def test_no_services_makes_no_reads(self):
+        """Without services nothing is read."""
         stats = make_stats()
         h = Harness(stats, {})
         result, main, first = h.update(utc(2026, 11, 17, 10, 20, 30))
@@ -737,6 +763,7 @@ SEASON_MAPPING = {**MAPPING, "seasons": NORTH}
 
 
 def season_stats() -> FakeStats:
+    """Return fake statistics with a cooling series added."""
     stats = make_stats()
     for sid, rate in ((OUT_C, 3.0), (EL_C, 1.0)):
         stats.series[sid] = Series(FIRST, rate)
@@ -749,14 +776,19 @@ def boundary_reads(calls) -> list[datetime]:
 
 
 def local(year, month, day) -> datetime:
+    """Return a local midnight in Europe/Amsterdam."""
     return datetime(year, month, day, tzinfo=TZ)
 
 
 class TestSeason:
+    """The season results and their boundary reads."""
+
     def shown(self, result, key="heating"):
+        """Return the season of a service in the result."""
         return result.services[key].season
 
     def test_pure_rules_of_boundary_actions(self):
+        """A boundary is reread when new, failed, caught up, read too early or moved."""
         now = utc(2027, 7, 15, 10)
         b = local(2026, 5, 1).astimezone(UTC)
         ids = frozenset({OUT_H, EL_H})
@@ -820,6 +852,7 @@ class TestSeason:
         ) == [b]
 
     def test_ten_updates_in_a_day_read_each_finished_season_boundary_once(self):
+        """Each finished season boundary is read once, not at every update."""
         h = Harness(season_stats(), SEASON_MAPPING)
         first_now = utc(2027, 7, 15, 10, 20, 30)  # between seasons
         result, main, _ = h.update(first_now)
@@ -846,6 +879,7 @@ class TestSeason:
         assert boundary_reads(main) == []
 
     def test_failed_boundary_read_is_retried_at_the_next_update(self):
+        """A failed boundary read gives unknown points and is retried."""
         stats = season_stats()
         stats.fail = {"hour"}  # only the boundary reads use the hour table here
         h = Harness(stats, SEASON_MAPPING)
@@ -871,6 +905,7 @@ class TestSeason:
         assert boundary_reads(main) == []
 
     def test_first_update_after_a_season_ends(self):
+        """After a season ends its figure is the whole season, its end is read again."""
         h = Harness(season_stats(), SEASON_MAPPING)
         result, main, _ = h.update(
             utc(2026, 4, 30, 21, 55, 30)
@@ -910,6 +945,7 @@ class TestSeason:
         assert boundary_reads(main) == []
 
     def test_season_unknown_when_a_boundary_reading_is_not_covered(self):
+        """A season is unknown until its boundary reading is covered."""
         stats = season_stats()
         h = Harness(stats, SEASON_MAPPING)
         h.update(utc(2026, 4, 30, 21, 55, 30))
@@ -945,6 +981,7 @@ class TestSeason:
         assert boundary_reads(main) == []
 
     def test_reading_or_reason(self):
+        """A boundary gives a reading, or the reason there is none."""
         b = local(2026, 5, 1).astimezone(UTC)
         rows = [{"start": b.timestamp() - H, "sum": 7.0}]
         after, before = b.timestamp() + H, b.timestamp() - 1
@@ -960,6 +997,7 @@ class TestSeason:
         assert engine.reading_or_reason(None, FIRST, after, b) == engine.NO_ROW
 
     def test_gap_of_more_than_31_days_before_a_boundary_is_read_once(self):
+        """A boundary without a row is read once and not retried."""
         stats = season_stats()
         b = local(2025, 5, 1)
         stats.series[EL_H].gap = (
@@ -988,6 +1026,7 @@ class TestSeason:
         assert boundary_reads(main) == []
 
     def test_dead_statistic_reads_no_boundary_at_each_update(self):
+        """A statistic without recent rows does not make the boundaries read again."""
         stats = season_stats()
         stats.series[EL_H].lag = 3 * 86400  # no 5-minute rows today: no last row end
         h = Harness(stats, SEASON_MAPPING)
@@ -1010,6 +1049,7 @@ class TestSeason:
         assert boundary_reads(main) == []
 
     def test_failed_next_day_re_read_keeps_the_good_readings(self):
+        """A failed re-read of a boundary keeps its earlier good readings."""
         stats = season_stats()
         h = Harness(stats, SEASON_MAPPING)
         h.update(utc(2026, 4, 30, 21, 55, 30))
@@ -1036,6 +1076,7 @@ class TestSeason:
         assert boundary_reads(main) == []
 
     def test_after_failed_read_keeps_good_readings_only_with_the_same_first_hours(self):
+        """Good readings are kept after a failed read only for the same first hours."""
         now = utc(2026, 5, 1, 22, 0, 30)
         first = {OUT_H: FIRST, EL_H: FIRST}
         good = engine.BoundaryRead(
@@ -1053,6 +1094,7 @@ class TestSeason:
             assert (dict(read.first_hours), read.read_at) == (hours, now)
 
     def test_running_season_energy_comes_from_the_windows(self):
+        """The running season reads the days it needs, from its own window."""
         # On 1 March 2027 a heating season from 15 October needs the days of October 2026, which
         # no period or series reads: only the running season's start brings them into the windows.
         h = Harness(
@@ -1079,6 +1121,7 @@ class TestSeason:
     def test_running_season_is_read_from_the_tables_and_its_start_is_in_the_windows(
         self,
     ):
+        """The running season is read from the tables, not from boundaries."""
         h = Harness(season_stats(), SEASON_MAPPING)
         now = utc(2027, 1, 15, 10, 20, 30)
         result, main, _ = h.update(now)
@@ -1101,6 +1144,7 @@ class TestSeason:
         assert plain["month"].start > early["month"].start
 
     def test_between_seasons_and_before_a_season_has_begun(self):
+        """Between seasons the last one shows, and a season not begun is unknown."""
         stats = season_stats()
         stats.series[OUT_C] = Series(utc(2026, 11, 13, 14), 3.0)
         stats.series[EL_C] = Series(utc(2026, 11, 13, 14), 1.0)
@@ -1134,6 +1178,7 @@ class TestSeason:
         assert heating.points[-1]["start"] == heating.period_start
 
     def test_cooling_factor_applies_to_cooling_only(self):
+        """The cooling unit factor applies to cooling and to no other service."""
         mapping = {
             **SEASON_MAPPING,
             "overall": MAPPING_OVERALL["overall"],
@@ -1178,6 +1223,7 @@ class TestSeason:
     def test_service_without_valid_season_dates_has_no_season_and_no_boundary_reads(
         self,
     ):
+        """Without valid season dates there is no season and no boundary read."""
         h = Harness(season_stats(), MAPPING)  # no seasons section
         result, main, _ = h.update(utc(2027, 7, 15, 10, 20, 30))
         assert boundary_reads(main) == []
@@ -1186,6 +1232,7 @@ class TestSeason:
         assert engine.services_of(broken)[0].season_dates is None
 
     def test_factor_argument_of_the_series_defaults_to_one(self):
+        """The factor of the series defaults to one."""
         h = Harness(
             season_stats(),
             {**SEASON_MAPPING, "cooling": {"output": [OUT_C], "electricity": [EL_C]}},
@@ -1199,7 +1246,10 @@ class TestSeason:
 
 
 class TestFirstHours:
+    """Reading the first statistics hour of each statistic."""
+
     def test_first_hours_from_a_month_day_and_hour_read(self):
+        """Month, day and hour reads give the first hours; one month read for both."""
         stats = make_stats()
         stats.series[EL_H] = Series(utc(2026, 11, 13, 14), 0.5)
         now = utc(2026, 11, 17, 10)
@@ -1226,6 +1276,7 @@ class TestFirstHours:
         assert months[0]["window"].end == now
 
     def test_statistic_older_than_the_month_window_changes_no_period_or_series(self):
+        """A statistic older than the month window changes no figure."""
         stats = make_stats()
         old = utc(2020, 3, 1)
         stats.series[OUT_H] = Series(old, 2.0)
@@ -1255,6 +1306,7 @@ class TestFirstHours:
     def test_missing_first_row_at_the_month_window_start_does_not_move_the_effective_start(
         self,
     ):
+        """A gap at the month window start does not move the effective start."""
         stats = make_stats()
         first = utc(
             2024, 11, 15
@@ -1277,6 +1329,7 @@ class TestFirstHours:
         )
 
     def test_first_hours_window_choice_with_seasons(self):
+        """The first-hours window is the whole history, bounded by what is known."""
         now = utc(2026, 11, 17, 10)
         full = eff.Window(engine.HISTORY_FLOOR, now)
         # No first hour known yet (the first read after a load): the whole history.
@@ -1301,6 +1354,7 @@ class TestFirstHours:
         ) == engine.first_hours_window(now, TZ)
 
     def test_bounded_first_hours_read_and_its_fallback_to_the_whole_history(self):
+        """A bounded first-hours read falls back to the whole history."""
         stats = make_stats()
         now = utc(2026, 11, 17, 10)
         stats.now = now
@@ -1330,6 +1384,7 @@ class TestFirstHours:
         ]
 
     def test_engine_reads_the_whole_history_once_then_bounded(self):
+        """The engine reads the whole history once, then bounded reads."""
         stats = season_stats()
         h = Harness(stats, SEASON_MAPPING)
         _, _, first = h.update(utc(2026, 11, 17, 10, 20, 30))
@@ -1344,6 +1399,7 @@ class TestFirstHours:
         assert set(h.state.first_hours.values()) == {FIRST}
 
     def test_statistic_without_rows_is_none(self):
+        """A statistic without rows has no first hour and no baseline."""
         stats = make_stats()
         stats.series[EL_H] = Series(utc(2099, 1, 1), 0.5)  # no rows yet
         hours, baselines, errors = asyncio.run(
@@ -1357,7 +1413,10 @@ class TestFirstHours:
 
 
 class TestImport:
+    """The imports of the pure modules and the glue."""
+
     def test_pure_modules_import_only_the_standard_library_and_pure_siblings(self):
+        """The pure modules import only the standard library and pure siblings."""
         for name, siblings in (
             ("engine.py", {"efficiency", "seasons", "validation"}),
             ("sensor_model.py", {"efficiency", "validation"}),
@@ -1379,6 +1438,7 @@ class TestImport:
             assert modules <= set(sys.stdlib_module_names), name
 
     def test_glue_passes_units_and_types_through(self):
+        """The coordinator passes the units and types of the engine to the read."""
         source = (PACKAGE / "coordinator.py").read_text(encoding="utf-8")
         tree = ast.parse(source)
         calls = [
@@ -1401,7 +1461,10 @@ class TestImport:
 
 
 class TestErrorChanges:
+    """The errors that changed between two updates."""
+
     def test_only_appeared_changed_and_cleared_errors_are_reported(self):
+        """Only appeared, changed and cleared errors are reported."""
         previous = {
             "month": None,
             "day": "A: x",
@@ -1424,7 +1487,10 @@ class TestErrorChanges:
 
 
 class TestDiagnostics:
+    """The diagnostics data of the engine."""
+
     def test_diagnostics_are_json_safe_and_show_windows_energies_and_errors(self):
+        """Diagnostics are JSON-safe and show windows, energies and errors."""
         stats = make_stats()
         stats.fail = {"month"}
         h = Harness(stats)
@@ -1440,6 +1506,7 @@ class TestDiagnostics:
         assert engine.diagnostics_data(engine.EngineState(), None)["energies"] == {}
 
     def test_diagnostics_hold_boundary_reads_and_season_points(self):
+        """Diagnostics hold the boundary reads and the season points."""
         state = engine.EngineState()
         instant = utc(2026, 10, 1)
         state.boundaries[instant] = engine.BoundaryRead(
@@ -1483,17 +1550,22 @@ MAPPING_DEFROST = {
 
 
 def defrost_stats(first=DEFROST_FIRST, rate=0.1, source="recorder") -> FakeStats:
+    """Return fake statistics with a defrost series added."""
     stats = season_stats()
     stats.series[DEF_H] = Series(first, rate, source)
     return stats
 
 
 def corrected(output, defrost, electrical, factor=1.0):
+    """Return the defrost-corrected ratio, rounded as the engine does."""
     return round((output - defrost) / electrical * factor, 2)
 
 
 class TestDefrost:
+    """The defrost correction through the engine."""
+
     def assert_corrected_unknown(self, service):
+        """Assert that the corrected figures and series of the service are unknown."""
         for period, p in service.periods.items():
             assert p.efficiency is None, period
             assert p.output_energy is None, period
@@ -1501,6 +1573,7 @@ class TestDefrost:
         assert (service.daily, service.monthly) == ([], [])
 
     def test_services_of_gives_each_service_its_own_defrost_statistics(self):
+        """Heating and hot water own their defrost, overall the union, cooling none."""
         mapping = {
             "heating": {**MAPPING["heating"], "defrost_heat": [DEF_H]},
             "hot_water": {**MAPPING["hot_water"], "defrost_heat": [DEF_W, DEF_H]},
@@ -1533,6 +1606,7 @@ class TestDefrost:
         assert engine.services_of(only)[0].defrost_ids == (DEF_H,)
 
     def test_year_to_date_starts_before_the_defrost_statistic_and_is_flagged(self):
+        """A period older than the defrost statistic is corrected and flagged."""
         h = Harness(defrost_stats(), MAPPING_DEFROST)
         result, _, _ = h.update(utc(2026, 11, 22, 10, 20, 30))
         plain = Harness(defrost_stats(), MAPPING)
@@ -1591,6 +1665,7 @@ class TestDefrost:
         assert daily["2026-11-17"]["efficiency"] == 4.0  # 0 kWh before the first hour
 
     def test_defrost_statistic_without_data_makes_heating_and_overall_unknown(self):
+        """A defrost statistic without data makes its services unknown."""
         stats = defrost_stats(first=utc(2099, 1, 1))  # no rows at all
         mapping = {**MAPPING_OVERALL, "heating": MAPPING_DEFROST["heating"]}
         h = Harness(stats, mapping)
@@ -1602,6 +1677,7 @@ class TestDefrost:
         assert result.services["hot_water"].periods["today"].efficiency == 4.0
 
     def test_defrost_sensor_offline_ends_every_heating_period(self):
+        """An offline defrost sensor ends every period of its service."""
         stats = defrost_stats(first=utc(2026, 11, 10))
         h = Harness(stats, MAPPING_DEFROST)
         h.update(utc(2026, 11, 17, 7, 0, 30))
@@ -1626,6 +1702,7 @@ class TestDefrost:
         )
 
     def test_external_defrost_statistic_makes_heating_read_hourly(self):
+        """An external defrost statistic makes its service read hourly."""
         stats = defrost_stats(first=utc(2026, 11, 10), source="external")
         h = Harness(stats, MAPPING_DEFROST)
         result, main, _ = h.update(utc(2026, 11, 17, 13, 20, 30))
@@ -1643,6 +1720,7 @@ class TestDefrost:
         )
 
     def test_day_read_before_the_defrost_statistic_caught_up_is_read_again(self):
+        """A day read before the defrost statistic caught up is read again."""
         stats = defrost_stats(first=utc(2026, 11, 10))
         h = Harness(stats, MAPPING_DEFROST)
         h.update(utc(2026, 11, 18, 10, 20, 30))
@@ -1675,6 +1753,7 @@ class TestDefrost:
         assert sources(main) == {"5minute"}
 
     def test_finished_season_before_the_defrost_statistic_has_no_defrost_energy(self):
+        """Seasons ended before the defrost statistic have 0.0 kWh and are partial."""
         mapping = {**SEASON_MAPPING, "heating": MAPPING_DEFROST["heating"]}
         h = Harness(defrost_stats(), mapping)
         result, _, _ = h.update(utc(2026, 11, 22, 10, 20, 30))
@@ -1703,6 +1782,7 @@ class TestDefrost:
             assert DEF_H in read.readings
 
     def test_overall_subtracts_both_sections_and_cooling_is_unchanged(self):
+        """Overall subtracts both defrost sections and cooling is unchanged."""
         stats = defrost_stats(first=utc(2026, 11, 10))
         stats.series[DEF_W] = Series(utc(2026, 11, 10), 0.05)
         mapping = {
@@ -1737,6 +1817,7 @@ class TestDefrost:
         assert "defrost_partial" not in cooling.daily[-1]
 
     def test_defrost_statistic_with_only_5_minute_rows_counts_from_today(self):
+        """A defrost statistic with only 5-minute rows counts from today."""
         stats = defrost_stats(first=utc(2026, 11, 17, 8))
         h = Harness(stats, MAPPING_DEFROST)
         now = utc(2026, 11, 17, 8, 20, 30)
@@ -1756,6 +1837,7 @@ class TestDefrost:
         assert all(p["defrost_partial"] for p in heating.monthly)
 
     def test_first_hours_refresh_reads_each_group_bounded_by_its_own_first_hour(self):
+        """The first-hours refresh reads each group within its own bounds."""
         mapping = {**SEASON_MAPPING, "heating": MAPPING_DEFROST["heating"]}
         stats = defrost_stats()
         h = Harness(stats, mapping)
@@ -1786,6 +1868,8 @@ class TestDefrost:
         assert h.state.first_hours[DEF_H] == DEFROST_FIRST
 
     def test_first_hours_read_at_moves_only_when_both_groups_succeed(self):
+        """The first-hours time moves only when both groups were read."""
+
         class FailDefrost(FakeStats):
             fail_defrost = False
 
@@ -1823,6 +1907,7 @@ class TestDefrost:
         assert h.state.errors[engine.ERROR_FIRST_HOURS] is None
 
     def test_ten_updates_in_a_day_read_the_finished_seasons_at_most_once(self):
+        """With defrost mapped, finished seasons are read once, not again next day."""
         mapping = {**SEASON_MAPPING, "heating": MAPPING_DEFROST["heating"]}
         h = Harness(defrost_stats(first=utc(2026, 11, 18, 9)), mapping)
         first_now = utc(2027, 7, 15, 10, 20, 30)  # between seasons
@@ -1839,6 +1924,7 @@ class TestDefrost:
         assert boundary_reads(main) == []
 
     def test_defrost_statistic_without_an_hourly_row_keeps_finished_seasons_known(self):
+        """Without an hourly defrost row the finished seasons stay known."""
         stats = defrost_stats(first=utc(2027, 7, 15, 9))  # only 5-minute rows at 09:20
         mapping = {**SEASON_MAPPING, "heating": MAPPING_DEFROST["heating"]}
         h = Harness(stats, mapping)
@@ -1861,6 +1947,7 @@ class TestDefrost:
             assert point["efficiency"] == 4.0
 
     def test_defrost_statistic_whose_sum_does_not_start_at_0(self):
+        """A defrost sum that does not start at zero is corrected by its baseline."""
         # An external counter whose first statistics hour (18 November 10:00 local) has a sum of
         # 500.0 kWh: the first sum is the baseline, so periods subtract only what it counted after.
         rate = 0.1
@@ -1896,6 +1983,7 @@ class TestDefrost:
         assert heating.defrost_start == since
 
     def test_finished_season_spanning_the_defrost_counters_start(self):
+        """A season spanning the defrost counter start counts only the change."""
         # First hour 15 November 2025 10:00 local with a first sum of 500.0 kWh; the sum is 520.0
         # kWh at the end of the season 1 October 2025 to 30 April 2026: 20.0 kWh of defrost heat.
         first = utc(2025, 11, 15, 9)
@@ -1926,6 +2014,7 @@ class TestDefrost:
         )
 
     def test_a_5_minute_row_inside_the_first_hour_counts_0(self):
+        """A 5-minute row inside the first hour counts as zero."""
         # The defrost statistic's first hour is today 09:00 local (08:00 UTC); at 11:20 local its
         # 5-minute rows of that hour add 0 and the rest of today counts.
         stats = defrost_stats(first=utc(2026, 11, 22, 8))
@@ -1939,6 +2028,7 @@ class TestDefrost:
         assert today.defrost_since == utc(2026, 11, 22, 9).astimezone(TZ).isoformat()
 
     def test_defrost_of_a_service_that_is_not_configured(self):
+        """Defrost of an unconfigured service corrects overall only."""
         # Only Overall is configured; a Heating defrost statistic is subtracted from Overall.
         mapping = {
             "heating": {"defrost_heat": [DEF_H]},
@@ -1972,6 +2062,7 @@ class TestDefrost:
         assert ytd.defrost_since == utc(2026, 11, 10, 1).astimezone(TZ).isoformat()
 
     def test_baselines_are_refreshed_with_the_first_hours(self):
+        """The baselines are refreshed together with the first hours."""
         stats = defrost_stats()
         h = Harness(stats, MAPPING_DEFROST)
         h.update(utc(2026, 11, 22, 10, 20, 30))
@@ -1987,6 +2078,7 @@ class TestDefrost:
         assert h.state.baselines[DEF_H] == 40.1
 
     def test_mapping_without_defrost_statistics_gives_the_same_reads_and_results(self):
+        """Without mapped defrost statistics the reads and results are unchanged."""
         # An empty defrost field, and a defrost series that is not mapped, change nothing.
         empty = {
             "heating": {**MAPPING["heating"], "defrost_heat": []},
@@ -2038,6 +2130,7 @@ class TestDefrost:
                     assert "defrost_partial" not in point
 
     def test_mapped_ids_include_the_defrost_statistics(self):
+        """The mapped IDs include the defrost statistics that are used."""
         assert engine.mapped_ids(MAPPING_DEFROST) == sorted(
             {OUT_H, EL_H, OUT_W, EL_W, DEF_H}
         )
@@ -2052,6 +2145,7 @@ class TestDefrost:
         assert engine.mapped_ids(MAPPING) == sorted({OUT_H, EL_H, OUT_W, EL_W})
 
     def test_diagnostics_show_the_defrost_ids_start_and_energies(self):
+        """Diagnostics show the defrost IDs, start, baselines and energies."""
         mapping = {**SEASON_MAPPING, "heating": MAPPING_DEFROST["heating"]}
         h = Harness(defrost_stats(), mapping)
         result, _, _ = h.update(utc(2026, 11, 22, 10, 20, 30))

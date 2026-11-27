@@ -24,6 +24,7 @@ _spec.loader.exec_module(val)
 
 
 def meta(statistic_id, unit_class="energy", has_sum=True, source="recorder"):
+    """Return the metadata row of a statistic."""
     return {
         "statistic_id": statistic_id,
         "unit_class": unit_class,
@@ -37,11 +38,15 @@ GOOD = [meta(OUT), meta(ELEC)]
 
 
 def form(**sections):
+    """Return the normalized mapping of the submitted sections."""
     return val.normalize_mapping(sections)
 
 
 class TestModuleHygiene:
+    """The module stays free of Home Assistant."""
+
     def test_imports_only_standard_library(self):
+        """validation.py imports only the standard library, no relative import."""
         tree = ast.parse((PACKAGE / "validation.py").read_text(encoding="utf-8"))
         roots = set()
         for node in ast.walk(tree):
@@ -54,7 +59,10 @@ class TestModuleHygiene:
 
 
 class TestHeatPumpAdded:
+    """The scenarios of adding a heat pump in the setup form."""
+
     def test_heating_only(self):
+        """Only the section with output and electricity configures a service."""
         mapping = form(
             heating={"output": [OUT], "electricity": [ELEC]},
             hot_water={},
@@ -66,32 +74,38 @@ class TestHeatPumpAdded:
         assert not val.validate(mapping, GOOD, "Pump").errors
 
     def test_nothing_mapped(self):
+        """A form without any mapped statistic is rejected on the base."""
         for submitted in ({}, {"heating": {}, "planned": {"price": "sensor.price"}}):
             result = val.validate(val.normalize_mapping(submitted), [], "Pump")
             assert result.errors == {"base": "nothing_mapped"}
 
     def test_output_without_electricity(self):
+        """An output without electricity is an error on its section."""
         mapping = form(cooling={"output": [OUT]})
         result = val.validate(mapping, GOOD, "Pump")
         assert result.errors == {"cooling": "electricity_missing"}
         assert val.configured_services(mapping) == []
 
     def test_electricity_without_output(self):
+        """Electricity without an output is an error on its section."""
         result = val.validate(form(overall={"electricity": [ELEC]}), GOOD, "Pump")
         assert result.errors == {"overall": "output_missing"}
 
     def test_error_only_on_failing_section(self):
+        """The error is reported on the failing section only."""
         mapping = form(
             heating={"output": [OUT], "electricity": [ELEC]}, cooling={"output": [OUT]}
         )
         assert set(val.validate(mapping, GOOD, "Pump").errors) == {"cooling"}
 
     def test_empty_name(self):
+        """A blank name is rejected, and a missing name (options flow) is not."""
         mapping = form(heating={"output": [OUT], "electricity": [ELEC]})
         assert val.validate(mapping, GOOD, "  ").errors == {"name": "name_required"}
         assert not val.validate(mapping, GOOD, None).errors  # options flow: no name
 
     def test_two_heat_pumps_are_independent(self):
+        """Two heat pumps with different statistics share nothing."""
         first = form(heating={"output": [OUT], "electricity": [ELEC]})
         second = form(
             overall={"output": ["sensor.b_heat"], "electricity": ["sensor.b_elec"]}
@@ -101,6 +115,7 @@ class TestHeatPumpAdded:
         assert val.statistic_ids(first) & val.statistic_ids(second) == set()
 
     def test_config_flow_sets_no_unique_id(self):
+        """The config flow sets no unique ID and adds no update listener."""
         source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
         assert "async_set_unique_id" not in source
         assert "_abort_if_unique_id" not in source
@@ -108,10 +123,14 @@ class TestHeatPumpAdded:
 
 
 class TestStatisticsValidated:
+    """The validation of the chosen statistics against their metadata."""
+
     def check(self, metadata, **sections):
+        """Validate the sections against the metadata for the heat pump Pump."""
         return val.validate(form(**sections), metadata, "Pump")
 
     def test_external_statistic_accepted(self):
+        """An external statistic with a sum is accepted."""
         meta_ext = meta("utility:total_import", source="utility")
         result = self.check(
             [meta_ext, meta(OUT)],
@@ -120,6 +139,7 @@ class TestStatisticsValidated:
         assert not result.errors
 
     def test_power_instead_of_energy(self):
+        """A power statistic is reported as not energy."""
         result = self.check(
             [meta(OUT), meta(ELEC, unit_class="power", has_sum=False)],
             heating={"output": [OUT], "electricity": [ELEC]},
@@ -129,6 +149,7 @@ class TestStatisticsValidated:
         assert result.placeholders["no_sum"] == ""
 
     def test_mean_only_statistic(self):
+        """A statistic without a sum is reported as having no sum."""
         result = self.check(
             [meta(OUT), meta(ELEC, has_sum=False)],
             heating={"output": [OUT], "electricity": [ELEC]},
@@ -137,6 +158,7 @@ class TestStatisticsValidated:
         assert result.placeholders["no_sum"] == "heating: " + ELEC
 
     def test_statistic_does_not_exist(self):
+        """A statistic without metadata is reported as missing."""
         result = self.check(
             [meta(OUT)], heating={"output": [OUT], "electricity": [ELEC]}
         )
@@ -144,6 +166,7 @@ class TestStatisticsValidated:
         assert result.placeholders["missing"] == "heating: " + ELEC
 
     def test_all_failing_choices_are_named(self):
+        """Every failing statistic is named under its kind of problem."""
         result = self.check(
             [
                 meta("sensor.a", unit_class=None, has_sum=False),
@@ -159,6 +182,7 @@ class TestStatisticsValidated:
         assert result.placeholders["missing"] == "heating: sensor.c, " + ELEC
 
     def test_two_sections_list_their_own_statistics(self):
+        """Each failing section lists its own statistics in the placeholder."""
         result = self.check(
             [meta(OUT), meta(ELEC)],
             heating={"output": [OUT], "electricity": ["sensor.a"]},
@@ -171,6 +195,7 @@ class TestStatisticsValidated:
         assert result.placeholders["missing"] == "heating: sensor.a; cooling: sensor.b"
 
     def test_one_failing_section_names_only_itself(self):
+        """A healthy section is not named when another one fails."""
         result = self.check(
             [meta(OUT), meta(ELEC)],
             heating={"output": [OUT], "electricity": [ELEC]},
@@ -180,6 +205,7 @@ class TestStatisticsValidated:
         assert result.placeholders["missing"] == "cooling: sensor.b"
 
     def test_submitted_planned_key_is_ignored(self):
+        """A submitted planned section is dropped and not validated."""
         mapping = form(
             heating={"output": [OUT], "electricity": [ELEC]},
             planned={"price": "sensor.unknown_price"},
@@ -204,9 +230,11 @@ class TestDefrostFields:
     """The efficiency-setup defrost scenarios that need no Home Assistant (design D2)."""
 
     def check(self, metadata, **sections):
+        """Validate the sections against the metadata for the heat pump Pump."""
         return val.validate(form(**sections), metadata, "Pump")
 
     def test_defrost_statistic_stored_and_shown_again(self):
+        """A defrost statistic is stored, normalized and suggested again."""
         mapping = form(heating={**HEATING, "defrost_heat": [DEF_H]})
         assert mapping["heating"]["defrost_heat"] == [DEF_H]
         assert val.defrost_ids(mapping, "heating") == [DEF_H]
@@ -216,10 +244,12 @@ class TestDefrostFields:
         assert not val.validate(mapping, [*GOOD, meta(DEF_H)], "Pump").errors
 
     def test_several_defrost_statistics_are_kept_in_order_without_duplicates(self):
+        """Several defrost statistics keep their order and lose duplicates."""
         mapping = form(heating={**HEATING, "defrost_heat": [DEF_H, DEF_W, DEF_H]})
         assert mapping["heating"]["defrost_heat"] == [DEF_H, DEF_W]
 
     def test_defrost_in_w_is_rejected_on_its_section(self):
+        """A defrost statistic in power is rejected on its own section."""
         result = self.check(
             [*GOOD, *HW_META, meta(DEF_W, unit_class="power", has_sum=False)],
             heating=HEATING,
@@ -229,6 +259,7 @@ class TestDefrostFields:
         assert result.placeholders["not_energy"] == f"hot_water: {DEF_W}"
 
     def test_missing_and_sumless_defrost_statistics(self):
+        """A missing or sumless defrost statistic is reported like any other."""
         result = self.check(GOOD, heating={**HEATING, "defrost_heat": [DEF_H]})
         assert result.errors == {"heating": "statistic_missing"}
         result = self.check(
@@ -238,6 +269,7 @@ class TestDefrostFields:
         assert result.errors == {"heating": "statistic_no_sum"}
 
     def test_defrost_alone_does_not_configure_a_service(self):
+        """A section with only defrost configures no service and has no errors."""
         mapping = form(
             heating={"defrost_heat": [DEF_H], "measured_since": "2026-11-13"},
             overall={"output": [OUT], "electricity": [ELEC]},
@@ -248,18 +280,21 @@ class TestDefrostFields:
         assert not val.validate(mapping, [*GOOD, meta(DEF_H)], "Pump").errors
 
     def test_only_a_defrost_statistic_maps_nothing(self):
+        """A defrost statistic alone maps nothing and corrects nothing."""
         mapping = form(heating={"defrost_heat": [DEF_H]})
         result = val.validate(mapping, [meta(DEF_H)], "Pump")
         assert result.errors["base"] == "nothing_mapped"  # and nothing is created
         assert result.errors.get("heating") == "defrost_unused"  # it corrects nothing
 
     def test_defrost_alone_does_not_keep_a_cooling_unit(self):
+        """A defrost-only cooling section is dropped with its unit."""
         mapping = form(
             cooling={"defrost_heat": [DEF_H], "unit": "btu_per_wh"}, heating=HEATING
         )
         assert "cooling" not in mapping
 
     def test_defrost_in_both_sections(self):
+        """Heating and hot water can each have their own defrost statistic."""
         mapping = form(
             heating={**HEATING, "defrost_heat": [DEF_H]},
             hot_water={**HOT_WATER, "defrost_heat": [DEF_W]},
@@ -269,6 +304,7 @@ class TestDefrostFields:
         assert not val.validate(mapping, metadata, "Pump").errors
 
     def test_defrost_dropped_for_cooling_and_overall_and_a_planned_key_is_ignored(self):
+        """Defrost is dropped for cooling and overall, a planned key is ignored."""
         mapping = form(
             heating=HEATING,
             cooling={**HEATING, "defrost_heat": [DEF_H]},
@@ -282,6 +318,7 @@ class TestDefrostFields:
         assert val.defrost_ids(mapping, "overall") == []
 
     def test_same_statistic_in_both_sections_is_rejected(self):
+        """The same defrost statistic in two sections is rejected."""
         result = self.check(
             [*GOOD, *HW_META, meta(DEF_H)],
             heating={**HEATING, "defrost_heat": [DEF_H]},
@@ -296,6 +333,7 @@ class TestDefrostFields:
         )
 
     def test_defrost_used_as_output_is_rejected_on_the_defrost_section(self):
+        """A defrost statistic that is also mapped elsewhere is a duplicate."""
         result = self.check(GOOD, heating={**HEATING, "defrost_heat": [OUT]})
         assert result.errors == {"heating": "defrost_duplicate"}
         assert result.placeholders["duplicate"] == f"heating: {OUT}"
@@ -308,10 +346,12 @@ class TestDefrostFields:
         assert result.errors == {"heating": "defrost_duplicate"}
 
     def test_duplicate_has_lower_priority_than_statistic_errors(self):
+        """A statistic error outranks the duplicate error."""
         result = self.check([meta(ELEC)], heating={**HEATING, "defrost_heat": [OUT]})
         assert result.errors == {"heating": "statistic_missing"}
 
     def test_defrost_that_corrects_nothing_is_rejected(self):
+        """A defrost statistic in a section without a service is unused."""
         result = self.check(
             [*HW_META, meta(DEF_H)],
             hot_water=HOT_WATER,
@@ -320,12 +360,14 @@ class TestDefrostFields:
         assert result.errors == {"heating": "defrost_unused"}
 
     def test_defrost_of_an_unconfigured_service_corrects_overall(self):
+        """Defrost of an unconfigured service is valid with overall configured."""
         result = self.check(
             [*GOOD, meta(DEF_H)], heating={"defrost_heat": [DEF_H]}, overall=HEATING
         )
         assert result.errors == {}
 
     def test_error_codes_and_priority(self):
+        """The defrost error codes, placeholders and priority are registered."""
         assert "defrost_duplicate" in val.ERRORS
         assert "defrost_unused" in val.ERRORS
         assert val.PLACEHOLDERS["defrost_duplicate"] == "duplicate"
@@ -336,6 +378,7 @@ class TestDefrostMigration:
     """The minor version 3 step (design D3)."""
 
     def test_slot_moves_to_heating_and_the_price_source_stays(self):
+        """The planned defrost slot moves to heating and the price stays."""
         stored = {
             "heating": {
                 "output": [OUT],
@@ -356,12 +399,14 @@ class TestDefrostMigration:
         assert "defrost_heat" not in stored["heating"]
 
     def test_slot_creates_the_heating_section_and_drops_an_empty_planned(self):
+        """The slot creates the heating section and an empty planned goes."""
         stored = {"overall": {"output": [OUT]}, "planned": {"defrost_heat": DEF_H}}
         moved = val.with_defrost_moved(stored)
         assert moved["heating"] == {"defrost_heat": [DEF_H]}
         assert "planned" not in moved
 
     def test_slot_is_added_to_a_list_without_duplicates(self):
+        """The slot joins the existing defrost list without duplicates."""
         stored = {
             "heating": {"defrost_heat": [DEF_W, DEF_H]},
             "planned": {"defrost_heat": [DEF_H]},
@@ -372,6 +417,7 @@ class TestDefrostMigration:
         ]
 
     def test_slot_holding_an_output_statistic(self):
+        """A slot value that is the heating output is dropped, not moved."""
         # The slot value is also the Heating output: it is dropped, not moved.
         stored = {
             "heating": {"output": [OUT], "electricity": [ELEC]},
@@ -384,6 +430,7 @@ class TestDefrostMigration:
         assert stored["planned"]["defrost_heat"] == OUT  # input not modified
 
     def test_slot_holding_an_electrical_statistic_or_an_output_of_another_section(self):
+        """A slot value mapped in another role is dropped, the others move."""
         stored = {
             "heating": {"output": [OUT], "electricity": [ELEC]},
             "overall": {"output": [DEF_W], "electricity": [DEF_H]},
@@ -399,6 +446,7 @@ class TestDefrostMigration:
         ]
 
     def test_slot_dropped_without_creating_a_heating_section(self):
+        """A dropped slot value does not create a heating section."""
         stored = {
             "overall": {"output": [OUT], "electricity": [ELEC]},
             "planned": {"defrost_heat": [OUT]},
@@ -409,6 +457,7 @@ class TestDefrostMigration:
         assert moved["overall"] == stored["overall"]
 
     def test_mapping_without_a_slot_is_unchanged(self):
+        """A mapping without a defrost slot is returned unchanged."""
         for stored in (
             {"heating": {"output": [OUT]}, "planned": {"price": "sensor.price"}},
             {"heating": {"output": [OUT]}},
@@ -417,6 +466,7 @@ class TestDefrostMigration:
             assert val.with_defrost_moved(stored) == stored
 
     def test_migration_is_idempotent(self):
+        """Running the step twice gives the same result as once."""
         once = val.with_defrost_moved(
             {"planned": {"defrost_heat": DEF_H, "price": "sensor.p"}}
         )
@@ -436,6 +486,7 @@ class TestPlannedMigration:
     """The minor version 4 step (design D2): the planned section is dropped."""
 
     def test_price_source_dropped(self):
+        """The migration drops the planned section and keeps the rest."""
         # Scenario "Price source dropped".
         stored = {
             "heating": {"output": [OUT], "electricity": [ELEC]},
@@ -449,6 +500,7 @@ class TestPlannedMigration:
         assert stored["planned"] == {"price": "sensor.price"}  # input not modified
 
     def test_entry_without_a_planned_section_is_unchanged(self):
+        """An entry without a planned section is copied unchanged."""
         # Scenario "Entry without a planned section".
         stored = {
             "heating": {"output": [OUT], "electricity": [ELEC]},
@@ -460,12 +512,14 @@ class TestPlannedMigration:
         assert val.without_planned({}) == {}
 
     def test_step_is_idempotent(self):
+        """Dropping the planned section twice gives the same result as once."""
         once = val.without_planned(
             {"heating": {"output": [OUT]}, "planned": {"price": "sensor.p"}}
         )
         assert val.without_planned(once) == once
 
     def test_minor_2_chain_moves_the_slot_and_drops_the_section(self):
+        """From minor version 2 the slot moves and the planned section goes."""
         # Scenario "Slot moved to Heating": the defrost step still sees the planned slot.
         stored = {
             "heating": {"output": [OUT], "electricity": [ELEC]},
@@ -481,6 +535,7 @@ class TestPlannedMigration:
         assert stored["planned"]["defrost_heat"] == DEF_H  # input not modified
 
     def test_minor_1_chain_ends_in_the_current_shape(self):
+        """From minor version 1 the entry gets seasons and no planned section."""
         stored = {
             "heating": {"output": [OUT], "electricity": [ELEC]},
             "planned": {"price": "sensor.p"},
@@ -490,6 +545,7 @@ class TestPlannedMigration:
         assert migrated["seasons"] == default_seasons(52.0)
 
     def test_minor_3_entry_only_loses_the_planned_section(self):
+        """From minor version 3 the entry only loses the planned section."""
         stored = {
             "heating": {"output": [OUT], "defrost_heat": [DEF_H]},
             "planned": {"price": "sensor.p"},
@@ -497,6 +553,7 @@ class TestPlannedMigration:
         assert migrate(stored, 3) == {"heating": stored["heating"]}
 
     def test_slot_holding_an_output_statistic_ends_without_a_planned_section(self):
+        """An output statistic in the slot is dropped with the planned section."""
         # Scenario "Slot holding an output statistic".
         stored = {
             "heating": {"output": [OUT], "electricity": [ELEC]},
@@ -506,6 +563,7 @@ class TestPlannedMigration:
         assert migrated == {"heating": {"output": [OUT], "electricity": [ELEC]}}
 
     def test_one_update_call_for_the_whole_migration(self):
+        """The migration updates the entry once, to minor version 4."""
         source = (PACKAGE / "__init__.py").read_text(encoding="utf-8")
         assert source.count("hass.config_entries.async_update_entry(") == 1
         assert source.count("minor_version=4)") == 1
@@ -518,7 +576,10 @@ class TestPlannedMigration:
 
 
 class TestMappingChanged:
+    """The effect of changing the mapping of a configured entry."""
+
     def test_meter_replaced_keeps_service_keys(self):
+        """Replacing a meter keeps the configured services."""
         before = form(overall={"output": [OUT], "electricity": [ELEC]})
         after = form(
             overall={"output": [OUT], "electricity": ["sensor.new_meter_energy"]}
@@ -527,10 +588,12 @@ class TestMappingChanged:
         assert after["overall"]["electricity"] == ["sensor.new_meter_energy"]
 
     def test_removed_service_is_no_longer_configured(self):
+        """A service emptied in the form is no longer configured."""
         mapping = form(heating={"output": [OUT], "electricity": [ELEC]}, cooling={})
         assert "cooling" not in val.configured_services(mapping)
 
     def test_normalize_is_idempotent(self):
+        """Normalizing a normalized mapping changes nothing and drops duplicates."""
         mapping = form(
             heating={
                 "output": [OUT, OUT],
@@ -543,7 +606,10 @@ class TestMappingChanged:
 
 
 class TestStoredSettings:
+    """What the normalized mapping stores of the optional settings."""
+
     def test_date_stored(self):
+        """The measured-since date is stored and survives normalizing."""
         mapping = form(
             hot_water={
                 "output": [OUT],
@@ -556,12 +622,14 @@ class TestStoredSettings:
         assert again["hot_water"]["measured_since"] == "2026-11-13"
 
     def test_no_date_means_no_key(self):
+        """A cleared measured-since date leaves no key."""
         mapping = form(
             heating={"output": [OUT], "electricity": [ELEC], "measured_since": None}
         )
         assert "measured_since" not in mapping["heating"]
 
     def test_planned_section_is_not_stored(self):
+        """A submitted planned section is not stored and maps no statistic."""
         mapping = form(
             heating={"output": [OUT], "electricity": [ELEC]},
             planned={
@@ -575,26 +643,33 @@ class TestStoredSettings:
 
 
 class TestExpandedSections:
+    """The form sections that start expanded."""
+
     def test_defaults_to_heating_and_overall(self):
+        """Without a stored mapping, heating and overall are expanded."""
         assert val.expanded_sections(None) == {"heating", "overall"}
 
     def test_stored_sections_expand(self):
+        """Sections stored in the mapping are expanded too."""
         stored = form(
             cooling={"output": [OUT], "electricity": [ELEC]},
         )
         assert val.expanded_sections(stored) == {"heating", "overall", "cooling"}
 
     def test_planned_never_expands(self):
+        """The planned section is never expanded."""
         # Neither a stored legacy planned section nor an error code of that name expands it.
         stored = {"heating": {"output": [OUT]}, "planned": {"price": "sensor.price"}}
         assert "planned" not in val.expanded_sections(stored)
         assert "planned" not in val.expanded_sections(stored, ["planned"])
 
     def test_error_sections_expand_and_base_is_ignored(self):
+        """Sections with an error expand, and the base error does not."""
         shown = val.expanded_sections({}, ["hot_water", "base", "name"])
         assert shown == {"heating", "overall", "hot_water"}
 
     def test_const_does_not_reexport_validation_keys(self):
+        """const.py does not mention the validation module."""
         assert "validation" not in (PACKAGE / "const.py").read_text(encoding="utf-8")
 
 
@@ -616,6 +691,7 @@ def seasons_form(**values):
 
 
 def with_seasons(**values):
+    """Return the normalized mapping with heating and the given season dates."""
     return val.normalize_mapping(
         {
             "heating": {"output": [OUT], "electricity": [ELEC]},
@@ -633,7 +709,10 @@ GOOD_SEASONS = {
 
 
 class TestSeasonDates:
+    """The season dates of the setup form."""
+
     def test_northern_defaults_are_the_suggested_values(self):
+        """At 52 degrees north the suggested dates are the northern defaults."""
         values = val.suggested_values(None, default_seasons(52.0))["seasons"]
         assert (values["heating_start_month"], values["heating_start_day"]) == ("10", 1)
         assert (values["heating_end_month"], values["heating_end_day"]) == ("4", 30)
@@ -641,6 +720,7 @@ class TestSeasonDates:
         assert (values["cooling_end_month"], values["cooling_end_day"]) == ("9", 30)
 
     def test_southern_defaults_are_the_suggested_values(self):
+        """At 33.9 degrees south the suggested dates are the southern defaults."""
         values = val.suggested_values(None, default_seasons(-33.9))["seasons"]
         assert (values["heating_start_month"], values["heating_start_day"]) == ("4", 1)
         assert (values["heating_end_month"], values["heating_end_day"]) == ("10", 31)
@@ -648,27 +728,32 @@ class TestSeasonDates:
         assert (values["cooling_end_month"], values["cooling_end_day"]) == ("2", 28)
 
     def test_stored_dates_win_over_defaults(self):
+        """Stored dates are suggested instead of the defaults."""
         stored = {"seasons": {"heating_start": "09-15", "heating_end": "05-15"}}
         values = val.suggested_values(stored, default_seasons(52.0))["seasons"]
         assert (values["heating_start_month"], values["heating_start_day"]) == ("9", 15)
         assert "cooling_start_month" not in values
 
     def test_same_start_and_end_rejected(self):
+        """A season that starts and ends on the same day is rejected."""
         mapping = with_seasons(
             **{**GOOD_SEASONS, "cooling_start": (6, 1), "cooling_end": (6, 1)}
         )
         assert val.validate(mapping, GOOD).errors == {"seasons": "season_same_day"}
 
     def test_day_not_in_month_rejected(self):
+        """A day that does not exist in its month is rejected."""
         mapping = with_seasons(**{**GOOD_SEASONS, "heating_end": (4, 31)})
         assert mapping["seasons"]["heating_end"] == "04-31"
         assert val.validate(mapping, GOOD).errors == {"seasons": "season_invalid_day"}
 
     def test_29_february_rejected(self):
+        """The 29th of February is rejected as a season date."""
         mapping = with_seasons(**{**GOOD_SEASONS, "cooling_end": (2, 29)})
         assert val.validate(mapping, GOOD).errors == {"seasons": "season_invalid_day"}
 
     def test_28_february_valid_and_out_of_range_values_rejected(self):
+        """The 28th of February is valid, out-of-range months and days are not."""
         ok = with_seasons(**{**GOOD_SEASONS, "cooling_end": (2, 28)})
         assert not val.validate(ok, GOOD).errors
         for month, day in ((13, 1), (0, 5), (5, 0), (5, 32)):
@@ -678,6 +763,7 @@ class TestSeasonDates:
             }, (month, day)
 
     def test_cleared_day_is_missing(self):
+        """A cleared day or month makes the season dates missing."""
         data = seasons_form(**GOOD_SEASONS)
         data["heating_end_day"] = None
         mapping = val.normalize_mapping(
@@ -692,6 +778,7 @@ class TestSeasonDates:
         assert val.validate(mapping, GOOD).errors == {"seasons": "season_missing"}
 
     def test_cleared_section_is_missing(self):
+        """An empty seasons section makes the season dates missing."""
         mapping = val.normalize_mapping(
             {"heating": {"output": [OUT], "electricity": [ELEC]}, "seasons": {}}
         )
@@ -699,6 +786,7 @@ class TestSeasonDates:
         assert val.validate(mapping, GOOD).errors == {"seasons": "season_missing"}
 
     def test_non_integer_day_is_invalid(self):
+        """A fractional day is an invalid day."""
         data = seasons_form(**GOOD_SEASONS)
         data["heating_end_day"] = 15.5
         mapping = val.normalize_mapping(
@@ -707,9 +795,11 @@ class TestSeasonDates:
         assert val.validate(mapping, GOOD).errors == {"seasons": "season_invalid_day"}
 
     def test_good_dates_are_valid_including_a_season_crossing_the_new_year(self):
+        """Good dates are valid, also for a season across the new year."""
         assert not val.validate(with_seasons(**GOOD_SEASONS), GOOD).errors
 
     def test_15_september_to_15_may_round_trip(self):
+        """Season dates survive the form, storage and the form again."""
         mapping = with_seasons(
             **{**GOOD_SEASONS, "heating_start": (9, 15), "heating_end": (5, 15)}
         )
@@ -724,18 +814,21 @@ class TestSeasonDates:
         assert val.normalize_mapping(mapping) == mapping  # idempotent on stored strings
 
     def test_seasons_do_not_configure_a_service(self):
+        """Season dates alone configure no service."""
         mapping = val.normalize_mapping({"seasons": seasons_form(**GOOD_SEASONS)})
         assert val.configured_services(mapping) == []
         assert val.statistic_ids(mapping) == set()
         assert val.validate(mapping, []).errors == {"base": "nothing_mapped"}
 
     def test_seasons_section_is_collapsed_unless_it_has_an_error(self):
+        """The seasons section expands only when it has an error."""
         stored = with_seasons(**GOOD_SEASONS)
         assert "seasons" not in val.expanded_sections(stored)
         assert "seasons" not in val.expanded_sections(None)
         assert "seasons" in val.expanded_sections(stored, ["seasons"])
 
     def test_migration_keeps_every_key_and_adds_the_four_dates(self):
+        """The migration keeps every key and adds the four default dates."""
         version_1 = form(
             heating={
                 "output": [OUT],
@@ -751,15 +844,19 @@ class TestSeasonDates:
         assert "seasons" not in version_1  # the input is not modified
 
     def test_migration_never_overwrites_stored_dates(self):
+        """The migration never overwrites stored season dates."""
         stored = with_seasons(**{**GOOD_SEASONS, "heating_start": (9, 15)})
         merged = val.with_default_seasons(stored, default_seasons(-33.9))
         assert merged["seasons"]["heating_start"] == "09-15"
 
 
 class TestCoolingUnit:
+    """The unit setting of the cooling section."""
+
     COOLING = {"output": [OUT], "electricity": [ELEC]}
 
     def test_default_unit_is_w_per_w_and_not_stored(self):
+        """The default W/W is the unit when unset and is never stored."""
         mapping = form(cooling=dict(self.COOLING))
         assert val.cooling_unit(mapping) == "w_per_w"
         assert "unit" not in mapping["cooling"]
@@ -769,6 +866,7 @@ class TestCoolingUnit:
         assert val.cooling_unit(None) == "w_per_w"
 
     def test_btu_per_wh_is_stored_and_shown_again(self):
+        """BTU/Wh is stored, normalized and suggested again."""
         mapping = form(cooling={**self.COOLING, "unit": "btu_per_wh"})
         assert mapping["cooling"]["unit"] == "btu_per_wh"
         assert val.cooling_unit(mapping) == "btu_per_wh"
@@ -778,6 +876,7 @@ class TestCoolingUnit:
         assert not val.validate(mapping, GOOD).errors
 
     def test_unit_is_dropped_when_cooling_is_not_configured(self):
+        """A unit without a configured cooling service is dropped."""
         mapping = form(
             heating={"output": [OUT], "electricity": [ELEC]},
             cooling={"unit": "btu_per_wh"},
@@ -786,10 +885,12 @@ class TestCoolingUnit:
         assert val.cooling_unit(mapping) == "w_per_w"
 
     def test_unit_is_only_a_cooling_field(self):
+        """Only the cooling section keeps a unit."""
         mapping = form(heating={**self.COOLING, "unit": "btu_per_wh"})
         assert "unit" not in mapping["heating"]
 
     def test_warning_decision(self):
+        """A warning is needed only when the unit changes with statistics present."""
         stored = form(cooling=dict(self.COOLING))
         btu = form(cooling={**self.COOLING, "unit": "btu_per_wh"})
         assert val.unit_change_needs_warning(stored, btu, True)
@@ -801,11 +902,13 @@ class TestCoolingUnit:
         assert not val.unit_change_needs_warning(btu, btu, True)
 
     def test_removing_cooling_never_warns(self):
+        """Removing cooling gives no unit change warning."""
         btu = form(cooling={**self.COOLING, "unit": "btu_per_wh"})
         removed = form(heating=dict(self.COOLING))
         assert not val.unit_change_needs_warning(btu, removed, True)
 
     def test_default_unit_is_suggested_when_cooling_is_configured(self):
+        """The form suggests W/W for a cooling section without a unit."""
         shown = val.suggested_values(
             form(cooling=dict(self.COOLING)), default_seasons(52.0)
         )
@@ -813,9 +916,12 @@ class TestCoolingUnit:
 
 
 class TestSharedOutputs:
+    """The detection of output statistics that another entry also uses."""
+
     A, B, C = "sensor.a_heat", "sensor.b_heat", "sensor.c_heat"
 
     def test_output_used_by_another_entry(self):
+        """An output that another entry uses is reported."""
         other = form(heating={"output": [self.A], "electricity": [ELEC]})
         mine = form(
             overall={"output": [self.B, self.A], "electricity": ["sensor.mine_elec"]}
@@ -823,11 +929,13 @@ class TestSharedOutputs:
         assert val.shared_outputs(mine, [other]) == [self.A]
 
     def test_different_outputs(self):
+        """Entries with different outputs share none, even with the same electricity."""
         other = form(heating={"output": [self.A], "electricity": [ELEC]})
         mine = form(heating={"output": [self.B], "electricity": [ELEC]})
         assert val.shared_outputs(mine, [other]) == []
 
     def test_overall_reusing_its_own_heating_output(self):
+        """An output reused within the same entry is not reported."""
         other = form(heating={"output": [self.A], "electricity": [ELEC]})
         mine = form(
             heating={"output": [self.B], "electricity": ["sensor.x_elec"]},
@@ -836,6 +944,7 @@ class TestSharedOutputs:
         assert val.shared_outputs(mine, [other]) == []
 
     def test_only_electricity_and_defrost_shared(self):
+        """Shared electricity and defrost statistics are not reported."""
         other = form(
             heating={
                 "output": [self.A],
@@ -853,10 +962,12 @@ class TestSharedOutputs:
         assert val.shared_outputs(mine, [other]) == []
 
     def test_no_other_entry(self):
+        """Without other entries nothing is reported."""
         mine = form(heating={"output": [self.A], "electricity": [ELEC]})
         assert val.shared_outputs(mine, []) == []
 
     def test_sorted_unique_across_sections_and_entries(self):
+        """Shared outputs are listed once and sorted over all sections and entries."""
         first = form(cooling={"output": [self.C], "electricity": [ELEC]})
         second = form(hot_water={"output": [self.A], "electricity": [ELEC]})
         mine = form(
@@ -866,4 +977,5 @@ class TestSharedOutputs:
         assert val.shared_outputs(mine, [first, second]) == [self.A, self.C]
 
     def test_ignores_sections_without_a_mapping(self):
+        """Empty entries and an entry with only season dates share no outputs."""
         assert val.shared_outputs({}, [{}, {"seasons": {}}]) == []
