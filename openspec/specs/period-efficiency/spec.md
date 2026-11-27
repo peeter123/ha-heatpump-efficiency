@@ -116,14 +116,15 @@ begun, the sensor SHALL be unknown.
 - **THEN** year to date starts in January and reports January as its effective start
 
 ### Requirement: Never a partial figure
-A sensor SHALL be unknown, never a figure computed from part of its period, when any statistics read that its
-period needs failed, did not cover the whole period, or was made before one of its mapped statistics had
-statistics up to the end of that read, and SHALL be unknown when any of its mapped statistics has no statistics
-at all. Such a read SHALL be retried at the next update.
+A sensor SHALL never show a figure computed from part of its period. It SHALL be unavailable while a statistics
+read that its value needs has failed (see "Unavailable while a needed read fails"). It SHALL be unknown when a read
+that its period needs did not cover the whole period, or was made before one of its mapped statistics had
+statistics up to the end of that read, and when any of its mapped statistics has no statistics at all. Such a read
+SHALL be retried at the next update.
 
 #### Scenario: Month read fails
 - **WHEN** the read of completed months fails while the reads of days and today succeed
-- **THEN** year to date and rolling 12 months are unknown and today and month to date are reported
+- **THEN** year to date and rolling 12 months are unavailable and today and month to date are reported
 
 #### Scenario: History extended by a backfill
 - **WHEN** the completed months were read while the effective start was 13 November, and a backfill later moves the electrical statistic's first statistics hour to January
@@ -208,3 +209,49 @@ water, one for Cooling and one for Overall, each different from the others. The 
 - **WHEN** the released version is installed and the entry has loaded
 - **THEN** each sensor shows its service's icon in the entity list and on the dashboard, and no sensor shows a
   missing-icon placeholder
+
+### Requirement: Unavailable while a needed read fails
+A sensor SHALL be unavailable while a statistics read that its value needs failed at its latest attempt, and
+available again at the first update at which that read succeeds; every other sensor of the entry SHALL stay
+available. A period sensor needs its recent read, its ranges' reads, and the recent reads giving the latest
+statistics of a statistic its ranges' tables lack. Every sensor whose value needs a read needs the metadata, and
+its service's first statistics hours, until read once.
+
+#### Scenario: Month read fails for one update
+- **WHEN** the read of completed months fails at one update and succeeds at the next
+- **THEN** year to date and rolling 12 months are unavailable after the first update and show their figures after
+  the second, while today and month to date stay available throughout
+
+#### Scenario: Recent read fails
+- **WHEN** the read of today's 5-minute statistics fails
+- **THEN** every period sensor of the services that read 5-minute statistics is unavailable, and the period
+  sensors of a service that reads hourly statistics stay available while their cached completed days and months
+  cover their statistics
+
+#### Scenario: Hourly service while the 5-minute read fails
+- **WHEN** a service that reads hourly statistics maps a statistic that also has 5-minute statistics, and the
+  read of today's 5-minute statistics fails at an update that reads the completed days
+- **THEN** the period sensors of that service whose ranges use the completed days are unavailable, not unknown,
+  until an update at which both reads succeed
+
+#### Scenario: Metadata never read
+- **WHEN** the entry loads while the statistics metadata cannot be read
+- **THEN** every sensor of the entry is unavailable until the metadata is read
+
+#### Scenario: Later metadata failure
+- **WHEN** the statistics metadata was read once and a later read of it fails
+- **THEN** the sensors stay available and use the last metadata read
+
+#### Scenario: Unknown is not unavailable
+- **WHEN** every read succeeds and a period is unknown because it has not begun, a statistic has no data, or the
+  electricity is below 0.1 kWh
+- **THEN** the sensor is available and its state is unknown
+
+### Requirement: Failed reads logged once
+A failed statistics read SHALL be logged once when it fails or its error changes, and once when it works again,
+at info level.
+
+#### Scenario: Logged once
+- **WHEN** the read of completed months fails at three updates in a row and then succeeds
+- **THEN** the log has one info line that names the failed read and its error, and one info line when it works
+  again

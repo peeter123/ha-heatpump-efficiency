@@ -110,10 +110,10 @@ live installation.
 
 ## 5. Release and live update
 
-- [ ] 5.1 [User authorization: pushes `main`] After the whole-change review, fast-forward `main` to the work branch,
+- [x] 5.1 [User authorization: pushes `main`] After the whole-change review, fast-forward `main` to the work branch,
   run the leak check, and push `main`. Delete the remote work branch with the owner's go. Verify: all CI jobs pass
   on `main`.
-- [ ] 5.2 [User authorization: tag and release] Tag `v0.3.0` on that commit and publish a GitHub release with
+- [x] 5.2 [User authorization: tag and release] Tag `v0.3.0` on that commit and publish a GitHub release with
   notes:
   - Gold;
   - unavailable sensors on a failed read, and the info log;
@@ -121,7 +121,7 @@ live installation.
   - the ruff settings and the reformatted code of `adopt-ruff-lint`.
 
   Verify: `gh release view v0.3.0`, and the Marketplace offers 0.3.0.
-- [ ] 5.3 [User authorization: updates the live installation and restarts Home Assistant; offer a backup first]
+- [x] 5.3 [User authorization: updates the live installation and restarts Home Assistant; offer a backup first]
   Update to 0.3.0 through the Marketplace and restart. Verify:
   - the entry loads;
   - the sensors keep their entity IDs and states, and every one is available;
