@@ -208,7 +208,8 @@ named after the heat pump: **today**, **month to date**, **year to date** and **
 Cooling and Overall also get a **season** sensor (see "Season sensors" below); Hot water has none. A service that
 is not configured gets none. The state is the efficiency (a ratio, for example 3.60) with no unit (except Cooling in BTU/Wh, see below), 2 decimals and
 state class measurement, so Home Assistant writes no logbook entries for it. It is unknown when the period is
-unknown (see the definitions below).
+unknown, and unavailable while a statistics read that its value needs has failed (see "Unknown and unavailable"
+in the definitions below).
 
 The Cooling sensors (the four periods and the season) show the unit `BTU/Wh` when the Cooling efficiency unit is
 BTU/Wh (the figure is the W/W ratio times 3.412142), and no unit when it is W/W, so W/W entities are the same as
@@ -264,9 +265,9 @@ The Heating, Overall and Cooling season sensors show the efficiency of a whole s
 Definitions): the heating season for Heating and Overall, the cooling season for Cooling. While a season runs the
 sensor is that season so far; between seasons it is the last finished season; it is unknown before the first
 season has begun within the mapped history, when the efficiency of the season is unknown, or when the entry has
-no valid season dates. The sensor has no attributes when no season has begun, when the entry has no valid season
-dates, or when its service is unknown as a whole (its metadata is not read yet, or a mapped statistic's first
-statistics hour is not known). With a dead mapped statistic (no current rows) it keeps its attributes and
+no valid season dates; it is unavailable while a read that the shown season needs has failed (see "Unknown and
+unavailable"). The sensor has no attributes when no season has begun, when the entry has no valid season
+dates, or while it is unavailable. With a dead mapped statistic (no current rows) it keeps its attributes and
 `seasons`: seasons not yet read show null figures, and finished seasons read earlier keep their figures until the
 entry is reloaded. A season that has begun but whose efficiency is unknown keeps its
 attributes, with its efficiency null in `seasons`. The state has 2 decimals, state class
@@ -307,7 +308,9 @@ per day (at the first update after the day starts). The statistics metadata (whi
 every update; Home Assistant usually serves it from memory. A read is made again earlier when the window it needs
 is no longer inside the cached one (the history of a statistic starts earlier), when its last read failed, or when
 it did not cover every mapped statistic yet (a lagging statistic); such a retry happens at every update until it
-succeeds. A failed read never breaks the sensors: the periods that need it are unknown until it succeeds.
+succeeds. A failed read never breaks the integration: the sensors whose value needs it are unavailable until it
+succeeds (see "Unknown and unavailable" in the definitions), every other sensor keeps its figure, and the failure
+is logged once at info level (see "Sensors are unavailable" under Troubleshooting).
 
 Finished seasons are not summed from days. Each is computed from the running counters of its statistics at the
 season's two boundaries (see "Seasons" under Definitions). A boundary is read when the integration loads or when
@@ -316,7 +319,11 @@ statistic's first statistics hour moves. A failed read is tried again at the nex
 statistic had statistics up to the boundary is tried again at the first update at which it has. A boundary whose
 statistic had no hourly statistics in the 31 days before it is not read again: that season stays unknown until
 the first statistics hour moves or the entry is reloaded. A missing reading only makes the seasons that need the
-boundary unknown, and when the read of the following day fails, the figure read before is kept. Ten updates in a
+boundary unknown. A failed boundary read makes the season sensor unavailable while the shown season needs that
+boundary and no earlier read of it is kept; when the read of the following day fails, the figure read before is
+kept and the sensor stays available. While the read of today's statistics fails, no boundary is read (the readings need the last statistics
+times) and the boundary counts as a failed read, so kept readings stay and a boundary never read is unavailable;
+it is read at the first update at which that read works again. Ten updates in a
 day therefore read no finished season more than once. The season that is running is summed from the same cached
 months, days and today's statistics as year to date.
 
@@ -430,8 +437,8 @@ templates in strict mode, where an undefined key is an error).
 
 This automation sends a persistent notification when the month-to-date Heating efficiency falls below 3. The entity
 ID is an example: find the real one under Settings, Devices & services, by opening the heat pump entry and its
-device. A `numeric_state` trigger does not fire while the sensor is unknown or unavailable, so an unknown period
-sends nothing.
+device. A `numeric_state` trigger does not fire while the sensor is unknown or unavailable, so a period that is
+unknown or unavailable sends nothing.
 
 ```yaml
 alias: Heat pump efficiency is low
@@ -501,7 +508,7 @@ service is not configured and Overall is not either) is not checked.
 
 - **Statistic missing for (heat pump):** the mapped statistic no longer exists, for example because the entity was
   renamed or removed. Open the heat pump entry, choose Configure and map a statistic that exists. The sensors that
-  use it are unknown meanwhile.
+  use it are unknown meanwhile, not unavailable: reading a statistic that does not exist is not a failed read.
 - **Statistic is not an energy statistic for (heat pump):** the statistic's unit is not an energy unit, for
   example power in W. Map an energy statistic instead, or restore the energy unit of the source. If the unit of a
   sensor changes to a non-energy unit, Home Assistant stops writing its statistics and keeps the energy unit in
@@ -541,6 +548,30 @@ rare. Such a change appears as an unusually large energy in the periods that inc
 repair the statistic's history with Home Assistant's statistics tools (this integration never changes
 statistics).
 
+### Sensors are unavailable
+
+A sensor is unavailable while a statistics read that its value needs has failed (see "Unknown and unavailable"
+in the definitions); the sensors that do not need that read stay available. Each failure is logged once, at info
+level, when the read fails or its error changes, and once when it works again, for example:
+
+```
+Statistics read 'month' failed: RuntimeError: database busy
+Statistics read 'month' works again
+```
+
+The name is the read: `month`, `day`, `hour` or `5minute` (a table of statistics), `metadata`, `first_hours` or
+`boundaries` (the season boundaries). Home Assistant logs only warnings and errors by default, so to see these
+lines set the log level of the integration to info, for example in `configuration.yaml`:
+
+```yaml
+logger:
+  logs:
+    custom_components.heatpump_efficiency: info
+```
+
+The sensors return at the first update (every 5 minutes) at which the read succeeds. If a read keeps failing, the
+error in the line and the last error of every read in the diagnostics (see below) tell why.
+
 ### Diagnostics
 
 Download diagnostics from the entry's menu (Settings, Devices & services, the heat pump entry, the three dots,
@@ -548,8 +579,8 @@ Download diagnostics) to see the options, the metadata of the mapped statistics,
 the season dates, the cached energies of every period, the boundary reads of the seasons (instant, readings,
 reasons, first hours, read time), the season points of every service with a season, the defrost statistics per service with their start, first
 statistics hours and baselines, the defrost
-energy, the uncorrected efficiency and `defrost_since` of each period and season of a corrected service, and the last error of every
-read. Nothing in it is redacted; it holds statistic IDs and energies only. Attach it when you report a problem.
+energy, the uncorrected efficiency and `defrost_since` of each period and season of a corrected service, the
+statistics whose first-hours read failed at the last attempt, and the last error of every read. Nothing in it is redacted; it holds statistic IDs and energies only. Attach it when you report a problem.
 
 ## Definitions
 
@@ -592,13 +623,33 @@ read. Nothing in it is redacted; it holds statistic IDs and energies only. Attac
   services are not affected. When a mapped statistic has no 5-minute statistics in the last 3 hours and none today
   (no hourly ones for a service read hourly), or its last statistics end before today started, every period of its
   service or Overall is unknown until it reports again.
-- **Never a partial figure.** A period is unknown rather than 0 when a statistics read it needs failed, did not
-  cover the whole period, or was made before one of its mapped statistics had statistics up to the end of that read
-  (such a read is tried again at every update), or when any of its mapped statistics has no statistics at all.
-  Every sensor is also unknown until the statistics metadata has been read successfully once (it tells which
-  statistics are external and read hourly); the metadata is read at every update, and a failed read keeps the
-  metadata read before. It
-  is never computed from part of its period. A legitimate 0.00 is still shown as 0.00.
+- **Never a partial figure.** A period is unknown rather than 0 when a statistics read it needs did not cover the
+  whole period, or was made before one of its mapped statistics had statistics up to the end of that read (such a
+  read is tried again at every update), or when any of its mapped statistics has no statistics at all. While a
+  statistics read it needs has failed it is unavailable instead (see "Unknown and unavailable"). Every sensor is
+  also unavailable until the statistics metadata has been read successfully once (it tells which statistics are
+  external and read hourly); the metadata is read at every update, and a failed read after the first success keeps
+  the metadata read before. A figure is never computed from part of its period. A legitimate 0.00 is still shown
+  as 0.00.
+- **Unknown and unavailable.** A sensor is unknown when every read it needs worked and there is still no figure: the
+  period has not begun, a mapped statistic has no data or is behind, a read did not cover the period yet, or the
+  electricity is below 0.1 kWh. A sensor is unavailable while a statistics read that its value needs failed at its
+  latest attempt, and it shows its figure again at the first update at which that read succeeds. A period sensor
+  needs the read of today's statistics of its service or Overall (5-minute statistics, or hourly ones for a service
+  read hourly) and the reads of the completed days and months that its period uses; so a failed read of completed
+  months makes year to date and rolling 12 months unavailable while today and month to date stay available, and a
+  failed read of today's statistics makes every period sensor of the services that read it unavailable. A
+  service that reads hourly statistics but also maps a statistic with 5-minute statistics (Overall, for example) is
+  unavailable too, for the periods that use completed days or months read at that update, while the 5-minute read
+  fails; its other periods stay available. A season
+  sensor needs the same reads for a running season, and the boundary reads (the running counters at the season's
+  two boundaries) for a finished one, unless an earlier read of a boundary is kept. Every sensor of a service is
+  unavailable until the statistics metadata has been read once and, for that service, until the first statistics
+  hour of each of its mapped statistics has been read once. A later failure of either keeps the last good values and
+  changes nothing. An unavailable sensor has no attributes. An available sensor's series attributes (`daily` and
+  `monthly`) can miss the points of a history read while it fails, because availability follows the sensor's own
+  value only. An automation that must also react to an unavailable
+  sensor has to test for `unavailable` as well as `unknown`.
 - **External statistics read hourly.** A statistic imported by another integration (an external statistic) has
   only hourly statistics. A service or Overall that uses one reflects its counters up to the last hour for which
   all its statistics have hourly statistics: at 14:20, with hourly statistics up to 14:00, every period of that

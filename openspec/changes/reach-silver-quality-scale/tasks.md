@@ -37,32 +37,38 @@ live installation.
 
 ## 2. Unavailable while a needed read fails
 
-- [ ] 2.1 In `engine.py`, as in design D4:
+- [x] 2.1 In `engine.py`, as in design D4:
   - add `read_failed: bool = False` to `PeriodResult` and `SeasonResult`;
   - add `EngineState.first_hours_failed`, set in `_refresh_first_hours`;
   - add the pure helper `failed_sources(state)`;
   - mark the periods, the running and the finished shown seasons, and the whole service for a never-read metadata
     or first hour;
+  - count the reads that depend on the recent tables as D4 says: a range whose table does not cover a statistic
+    whose last-row-end source failed, and a boundary read made while such a source failed (through
+    `after_failed_read`);
   - show `first_hours_failed` in `diagnostics_data`.
 
   Add tests to `tests/test_engine.py` for:
   - the `period-efficiency` scenarios "Month read fails", "Month read fails for one update", "Recent read fails",
-    "Metadata never read", "Later metadata failure" and "Unknown is not unavailable";
-  - the `season-efficiency` scenarios "Boundary read fails", "Repeated boundary read fails" and "Running season
-    needs a failed read";
+    "Hourly service while the 5-minute read fails", "Metadata never read", "Later metadata failure" and "Unknown
+    is not unavailable";
+  - the `season-efficiency` scenarios "Boundary read fails", "Repeated boundary read fails", "Boundary read while
+    the recent read fails" and "Running season needs a failed read";
   - a failed first-hours read before the first success.
 
   Verify: `python scripts/lint.py` exits 0.
-- [ ] 2.2 In `sensor.py`, add `available` to `EfficiencySensor` and `SeasonEfficiencySensor` (design D5): the
+- [x] 2.2 In `sensor.py`, add `available` to `EfficiencySensor` and `SeasonEfficiencySensor` (design D5): the
   coordinator's availability and not `read_failed` of the sensor's own result, with the ha-core citations. Verify:
   `python scripts/lint.py` exits 0; the sensor behaviour is tested in group 3.
-- [ ] 2.3 In `coordinator.py`, log the failure line at info level instead of warning (design D6). Update the
+- [x] 2.3 In `coordinator.py`, log the failure line at info level instead of warning (design D6). Update the
   coordinator docstring: a failed read makes the affected sensors unavailable, not unknown. Verify:
   `python scripts/lint.py` exits 0.
-- [ ] 2.4 Update the README:
+- [x] 2.4 Update the README:
   - the failed-read sentences ("A failed read never breaks the sensors ..." and the missing-statistic note under
     the repair issues) say which sensors become unavailable;
   - the definitions of unknown say that unknown means the data was read;
+  - one sentence says that an available sensor's series attributes can miss points while a history read fails
+    (D4);
   - the troubleshooting text names the info log line.
 
   Verify: the README describes no behaviour the code does not have, and every "unknown" that came from a failed

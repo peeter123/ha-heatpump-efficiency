@@ -36,8 +36,9 @@ SHALL be retried at the next update.
 ### Requirement: Unavailable while a needed read fails
 A sensor SHALL be unavailable while a statistics read that its value needs failed at its latest attempt, and
 available again at the first update at which that read succeeds; every other sensor of the entry SHALL stay
-available. A period sensor needs the recent read of its service or Overall and the reads its period's ranges use.
-Every sensor needs the metadata, and a service's sensors its first statistics hours, until read once.
+available. A period sensor needs its recent read, its ranges' reads, and the recent reads giving the latest
+statistics of a statistic its ranges' tables lack. Every sensor needs the metadata, and a service's sensors their
+first statistics hours, until read once.
 
 #### Scenario: Month read fails for one update
 - **WHEN** the read of completed months fails at one update and succeeds at the next
@@ -47,7 +48,14 @@ Every sensor needs the metadata, and a service's sensors its first statistics ho
 #### Scenario: Recent read fails
 - **WHEN** the read of today's 5-minute statistics fails
 - **THEN** every period sensor of the services that read 5-minute statistics is unavailable, and the period
-  sensors of a service that reads hourly statistics stay available
+  sensors of a service that reads hourly statistics stay available while their cached completed days and months
+  cover their statistics
+
+#### Scenario: Hourly service while the 5-minute read fails
+- **WHEN** a service that reads hourly statistics maps a statistic that also has 5-minute statistics, and the
+  read of today's 5-minute statistics fails at an update that reads the completed days
+- **THEN** the period sensors of that service whose ranges use the completed days are unavailable, not unknown,
+  until an update at which both reads succeed
 
 #### Scenario: Metadata never read
 - **WHEN** the entry loads while the statistics metadata cannot be read

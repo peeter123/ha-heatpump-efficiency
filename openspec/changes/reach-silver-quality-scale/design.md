@@ -149,6 +149,25 @@ computed in the engine from the state of this update, as pure functions unit-tes
     `EngineState` gains `first_hours_failed: frozenset[str]`, the IDs whose read failed at the last attempt, set
     in `_refresh_first_hours`. The service is `read_failed` when `resolve_effective` reports it not known and
     one of its `all_ids` is in that set.
+- **Reads that depend on the recent tables** (owner's decision 2026-11-27, after the group 2 review). The recent
+  tables give each statistic's last row end (`efficiency.last_row_ends`: `5minute` for a recorder statistic, also
+  when its service reads hourly; `hour` for an hourly-only one). Two other reads use it:
+  - **A history table** (day or month) records which statistics it covers when it is read. A range of a period or
+    running season also counts as failed when its table does not cover one of the service's IDs and the source
+    table of that ID's last row end failed at this update. So an hourly service such as Overall is unavailable,
+    not unknown, while the 5-minute read fails during an update that reads its day or month table, and stays
+    available while its cached tables cover its statistics.
+  - **A boundary read** takes its readings' last row end from the same tables. In `_refresh_boundaries`, a
+    boundary read made while the source table of the last row end of a statistic it needs failed at this update
+    counts as a failed read, through `after_failed_read`: earlier good readings are kept, so the season keeps its
+    figure and stays available, and a first read gives `readings` None, so the shown season is `read_failed`. Such
+    a boundary is not read while that source has failed, so no extra reads are made during an outage; it is read at
+    the first update at which the source works again. The statistics a boundary needs are those of every service
+    that shares it, so an Overall with only hourly statistics shares Heating's unavailable first read; this rare
+    case is accepted.
+- **Series attributes:** availability follows the sensor's value only. While a history read fails, an available
+  sensor's series attributes (`daily`, `monthly`) can miss the points that read gives; the README says so (owner's
+  decision 2026-11-27).
 - **Not affected:** an unknown period whose reads all worked keeps `read_failed` False, and the sensor shows
   unknown. Examples: not begun, no data, a lagging or incomplete read, the 0.1 kWh rule, a defrost statistic
   behind.

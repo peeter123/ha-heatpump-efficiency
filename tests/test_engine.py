@@ -1486,6 +1486,348 @@ class TestErrorChanges:
         assert engine.error_changes({}, {"a": "b"}) == [("a", None, "b")]
 
 
+class TestReadFailed:
+    """Which results depend on a failed read (``read_failed``, design D4 of reach-silver-quality-scale)."""
+
+    NOW = utc(2026, 11, 17, 10, 20, 30)
+
+    def flags(self, service) -> dict[str, bool]:
+        """Return the ``read_failed`` flag of each period of a service."""
+        return {period: p.read_failed for period, p in service.periods.items()}
+
+    def overall_mapping(self, base) -> dict:
+        """Return a mapping with Overall on recorder statistics, so it reads 5-minute rows."""
+        return {**base, "overall": {"output": [OUT_A], "electricity": [EL_A]}}
+
+    def overall_stats(self, stats):
+        """Make the Overall electricity a recorder statistic (not external)."""
+        stats.series[EL_A] = Series(FIRST, 0.75)
+        return stats
+
+    def test_failed_sources_names_the_tables_whose_read_failed(self):
+        """Only a table cached with ``rows=None`` is a failed source."""
+        state = engine.EngineState()
+        window = eff.Window(utc(2026, 11, 1), utc(2026, 11, 2))
+        state.tables["month"] = eff.TableRead("month", window, None)
+        state.tables["day"] = eff.TableRead("day", window, {})
+        assert engine.failed_sources(state) == frozenset({"month"})
+        assert engine.failed_sources(engine.EngineState()) == frozenset()
+
+    def test_month_read_fails(self):
+        """Scenario "Month read fails": year to date and rolling 12 months fail, today and month to date do not."""
+        stats = make_stats()
+        stats.fail = {"month"}
+        h = Harness(stats)
+        result, _, _ = h.update(self.NOW)
+        for key in ("heating", "hot_water"):
+            assert self.flags(result.services[key]) == {
+                "today": False,
+                "month_to_date": False,
+                "year_to_date": True,
+                "rolling_12_months": True,
+            }, key
+        periods = result.services["heating"].periods
+        assert periods["today"].efficiency == 4.0
+        assert periods["month_to_date"].efficiency == 4.0
+        assert periods["year_to_date"].efficiency is None
+
+    def test_month_read_fails_for_one_update(self):
+        """Scenario "Month read fails for one update": unavailable after the first update only."""
+        stats = make_stats()
+        stats.fail = {"month"}
+        h = Harness(stats)
+        result, _, _ = h.update(self.NOW)
+        flags = self.flags(result.services["heating"])
+        assert flags["year_to_date"]
+        assert flags["rolling_12_months"]
+        assert not flags["today"]
+        assert not flags["month_to_date"]
+        stats.fail = set()
+        result, _, _ = h.update(self.NOW + timedelta(minutes=5))
+        heating = result.services["heating"]
+        assert not any(self.flags(heating).values())
+        assert heating.periods["year_to_date"].efficiency == 4.0
+        assert heating.periods["rolling_12_months"].efficiency == 4.0
+
+    def test_recent_read_fails(self):
+        """Scenario "Recent read fails": the 5-minute services fail, the hourly service stays available."""
+        stats = (
+            make_stats()
+        )  # the Overall electricity is external: Overall reads hourly
+        h = Harness(stats, MAPPING_OVERALL)
+        h.update(self.NOW)  # the history tables are read and cached
+        stats.fail = {"5minute"}
+        result, main, _ = h.update(self.NOW + timedelta(minutes=5))
+        assert sources(main) == {"5minute", "hour"}  # no history table is read
+        for key in ("heating", "hot_water"):
+            assert all(self.flags(result.services[key]).values()), key
+        overall = result.services["overall"]
+        assert not any(self.flags(overall).values())
+        for period, p in overall.periods.items():
+            assert p.efficiency == 4.0, period
+
+    def test_hourly_service_while_the_5_minute_read_fails(self):
+        """Scenario "Hourly service while the 5-minute read fails": the periods that use history fail."""
+        stats = make_stats()  # Overall: recorder output, external electricity
+        stats.fail = {"5minute"}
+        h = Harness(stats, MAPPING_OVERALL)
+        result, main, _ = h.update(self.NOW)  # reads the day and month tables
+        assert {"day", "month"} <= sources(main)
+        overall = result.services["overall"]
+        assert self.flags(overall) == {
+            "today": False,
+            "month_to_date": True,
+            "year_to_date": True,
+            "rolling_12_months": True,
+        }
+        assert (
+            overall.periods["today"].efficiency == 4.0
+        )  # today is read from the hour table
+        for period in ("month_to_date", "year_to_date", "rolling_12_months"):
+            assert overall.periods[period].efficiency is None, period
+        stats.fail = set()
+        result, _, _ = h.update(self.NOW + timedelta(minutes=5))
+        overall = result.services["overall"]
+        assert not any(self.flags(overall).values())
+        for period, p in overall.periods.items():
+            assert p.efficiency == 4.0, period
+
+    def test_metadata_never_read(self):
+        """Scenario "Metadata never read": every sensor, seasons included, is read_failed."""
+        stats = make_stats()
+
+        async def failing(statistic_ids):
+            raise RuntimeError("database busy")
+
+        stats.metadata = failing
+        h = Harness(stats, self.overall_mapping(SEASON_MAPPING))
+        result, _, _ = h.update(self.NOW)
+        assert not h.state.metadata_ok
+        for key, service in result.services.items():
+            assert all(self.flags(service).values()), key
+        assert result.services["heating"].season.read_failed
+        assert result.services["overall"].season.read_failed
+        assert result.services["hot_water"].season is None
+        # Available as soon as the metadata has been read.
+        del stats.metadata
+        result, _, _ = h.update(self.NOW + timedelta(minutes=5))
+        assert h.state.metadata_ok
+        for key, service in result.services.items():
+            assert not any(self.flags(service).values()), key
+        assert not result.services["heating"].season.read_failed
+        assert result.services["heating"].periods["today"].efficiency == 4.0
+
+    def test_later_metadata_failure(self):
+        """Scenario "Later metadata failure": the last metadata is used and nothing is read_failed."""
+        stats = make_stats()
+
+        async def failing(statistic_ids):
+            raise RuntimeError("database busy")
+
+        h = Harness(stats, self.overall_mapping(SEASON_MAPPING))
+        h.update(self.NOW)
+        good = list(h.state.metadata)
+        stats.metadata = failing
+        result, _, _ = h.update(self.NOW + timedelta(minutes=5))
+        assert h.state.metadata_ok
+        assert h.state.errors["metadata"].startswith("RuntimeError")
+        assert h.state.metadata == good  # the last metadata is used
+        for key, service in result.services.items():
+            assert not any(self.flags(service).values()), key
+        assert not result.services["heating"].season.read_failed
+        # Overall is still known to read hourly (its electricity is external): it has figures.
+        assert result.services["overall"].periods["today"].efficiency == 4.0
+
+    def test_unknown_is_not_unavailable(self):
+        """Scenario "Unknown is not unavailable": unknown periods whose reads worked are not read_failed."""
+        # Statistic without data: no rows at all.
+        stats = make_stats()
+        stats.series[EL_H] = Series(utc(2099, 1, 1), 0.5)
+        h = Harness(stats, SEASON_MAPPING)
+        result, _, _ = h.update(self.NOW)
+        heating = result.services["heating"]
+        assert all(p.efficiency is None for p in heating.periods.values())
+        assert not any(self.flags(heating).values())
+        assert not heating.season.read_failed
+        # Not begun: the electricity statistic has only 5-minute rows from today.
+        stats = make_stats()
+        stats.series[EL_H] = Series(utc(2026, 11, 17, 8), 0.5)
+        h = Harness(stats, {"heating": MAPPING["heating"]})
+        result, _, _ = h.update(utc(2026, 11, 17, 8, 20, 30))
+        heating = result.services["heating"]
+        assert all(p.efficiency is None for p in heating.periods.values())
+        assert not any(self.flags(heating).values())
+        # The 0.1 kWh rule: just after local midnight today has no electricity yet.
+        h = Harness(make_stats())
+        h.update(utc(2026, 11, 17, 22, 55, 30))
+        result, _, _ = h.update(utc(2026, 11, 17, 23, 0, 30))
+        heating = result.services["heating"]
+        assert heating.periods["today"].efficiency is None
+        assert not any(self.flags(heating).values())
+
+    def test_boundary_read_fails(self):
+        """Scenario "Boundary read fails": the Heating and Overall seasons fail, the periods do not."""
+        stats = self.overall_stats(season_stats())
+        stats.fail = {"hour"}  # only the boundary reads use the hour table here
+        h = Harness(stats, self.overall_mapping(SEASON_MAPPING))
+        result, _, _ = h.update(utc(2027, 7, 15, 10, 20, 30))
+        assert "RuntimeError" in h.state.errors["boundaries"]
+        for key in ("heating", "overall"):
+            service = result.services[key]
+            assert service.season.read_failed, key
+            assert not any(self.flags(service).values()), key
+        assert not any(self.flags(result.services["hot_water"]).values())
+        stats.fail = set()
+        result, _, _ = h.update(utc(2027, 7, 15, 10, 25, 30))
+        assert not result.services["heating"].season.read_failed
+        assert result.services["heating"].season.efficiency == 4.0
+
+    def test_repeated_boundary_read_fails(self):
+        """Scenario "Repeated boundary read fails": earlier readings keep the season available."""
+        stats = season_stats()
+        h = Harness(stats, SEASON_MAPPING)
+        h.update(utc(2026, 4, 30, 21, 55, 30))
+        result, _, _ = h.update(
+            utc(2026, 4, 30, 22, 0, 30)
+        )  # the season has just ended
+        assert not result.services["heating"].season.read_failed
+        stats.fail = {"hour"}
+        result, _, _ = h.update(
+            utc(2026, 5, 1, 22, 0, 30)
+        )  # the next-day re-read fails
+        assert "RuntimeError" in h.state.errors["boundaries"]
+        season = result.services["heating"].season
+        assert not season.read_failed
+        assert season.efficiency == 4.0
+
+    def test_boundary_read_while_the_recent_read_fails(self):
+        """Scenario "Boundary read while the recent read fails": a first read fails, kept readings stay."""
+        # A first read: no boundary is read while the 5-minute read fails (nor at the next
+        # update of the outage); the season is unavailable until the boundaries have been read.
+        stats = season_stats()
+        stats.fail = {"5minute"}
+        h = Harness(stats, SEASON_MAPPING)
+        result, main, _ = h.update(utc(2027, 7, 15, 10, 20, 30))
+        assert boundary_reads(main) == []
+        assert "5minute" in h.state.errors["boundaries"]
+        assert all(b.readings is None for b in h.state.boundaries.values())
+        assert result.services["heating"].season.read_failed
+        result, main, _ = h.update(utc(2027, 7, 15, 10, 25, 30))
+        assert boundary_reads(main) == []
+        assert result.services["heating"].season.read_failed
+        stats.fail = set()
+        result, main, _ = h.update(utc(2027, 7, 15, 10, 30, 30))
+        assert len(boundary_reads(main)) == 6  # read at recovery
+        assert h.state.errors["boundaries"] is None
+        season = result.services["heating"].season
+        assert not season.read_failed
+        assert season.efficiency == 4.0
+        # Earlier readings are kept while the recent read fails; no re-read is made.
+        stats = season_stats()
+        h = Harness(stats, SEASON_MAPPING)
+        h.update(utc(2026, 4, 30, 21, 55, 30))
+        result, _, _ = h.update(
+            utc(2026, 4, 30, 22, 0, 30)
+        )  # the season has just ended
+        assert result.services["heating"].season.efficiency == 4.0
+        b = local(2026, 5, 1).astimezone(UTC)
+        stats.fail = {"5minute"}
+        for now in (utc(2026, 5, 1, 22, 0, 30), utc(2026, 5, 1, 22, 5, 30)):
+            result, main, _ = h.update(now)  # the next-day re-read is due
+            assert boundary_reads(main) == []
+            assert "5minute" in h.state.errors["boundaries"]
+            season = result.services["heating"].season
+            assert not season.read_failed
+            assert season.efficiency == 4.0
+        stats.fail = set()
+        result, main, _ = h.update(utc(2026, 5, 1, 22, 10, 30))
+        assert boundary_reads(main) == [b]  # read at recovery
+        assert h.state.errors["boundaries"] is None
+        assert result.services["heating"].season.efficiency == 4.0
+
+    def test_running_season_needs_a_failed_read(self):
+        """Scenario "Running season needs a failed read": the running seasons fail as year to date does."""
+        stats = self.overall_stats(season_stats())
+        stats.fail = {"month"}
+        h = Harness(stats, self.overall_mapping(SEASON_MAPPING))
+        result, _, _ = h.update(utc(2027, 3, 15, 10, 20, 30))
+        for key in ("heating", "overall"):
+            service = result.services[key]
+            assert service.season.read_failed, key
+            assert service.periods["year_to_date"].read_failed, key
+            assert not service.periods["month_to_date"].read_failed, key
+        # A running season that does not use the month table is not affected (it starts this month).
+        h = Harness(
+            stats, {**SEASON_MAPPING, "seasons": {**NORTH, "heating_start": "01-10"}}
+        )
+        result, _, _ = h.update(utc(2027, 1, 15, 10, 20, 30))
+        assert not result.services["heating"].season.read_failed
+
+    def test_first_hours_failed_before_the_first_success(self):
+        """A failed first-hours read before the first success makes the service read_failed."""
+        stats = make_stats()
+        stats.fail_single = True
+        h = Harness(stats, SEASON_MAPPING)
+        result, _, _ = h.update(self.NOW)
+        assert h.state.first_hours_failed == frozenset({OUT_H, EL_H, OUT_W, EL_W})
+        for key, service in result.services.items():
+            assert all(self.flags(service).values()), key
+        assert result.services["heating"].season.read_failed
+        stats.fail_single = False
+        result, _, _ = h.update(self.NOW + timedelta(minutes=5))
+        assert h.state.first_hours_failed == frozenset()
+        for key, service in result.services.items():
+            assert not any(self.flags(service).values()), key
+        # A later failure keeps the first hours read before: nothing is read_failed.
+        stats.fail_single = True
+        result, _, _ = h.update(utc(2026, 11, 18, 10, 20, 30))
+        assert h.state.first_hours_failed
+        for key, service in result.services.items():
+            assert not any(self.flags(service).values()), key
+
+    def test_first_hours_failed_of_another_service_does_not_fail_this_one(self):
+        """Only the services that map a failed statistic are read_failed."""
+        stats = make_stats()
+
+        class OnlyWater:
+            """Reader whose first-hours reads of the hot water statistics fail."""
+
+            async def read(self, source, statistic_ids, window, units, types):
+                if len(statistic_ids) == 1 and next(iter(statistic_ids)) in (
+                    OUT_W,
+                    EL_W,
+                ):
+                    raise RuntimeError("boom")
+                return await stats.read(source, statistic_ids, window, units, types)
+
+            async def metadata(self, statistic_ids):
+                return await stats.metadata(statistic_ids)
+
+        stats.now = self.NOW
+        state = engine.EngineState()
+        result = asyncio.run(
+            engine.async_update(state, MAPPING, OnlyWater(), self.NOW, TZ)
+        )
+        assert state.first_hours_failed == frozenset({OUT_W, EL_W})
+        assert all(self.flags(result.services["hot_water"]).values())
+        assert not any(self.flags(result.services["heating"]).values())
+
+    def test_diagnostics_show_the_failed_first_hours(self):
+        """The diagnostics list the statistics whose first-hours read failed."""
+        stats = make_stats()
+        stats.fail_single = True
+        h = Harness(stats)
+        result, _, _ = h.update(self.NOW)
+        data = engine.diagnostics_data(h.state, result)
+        json.dumps(data)
+        assert data["first_hours_failed"] == sorted(h.state.first_hours_failed)
+        assert data["first_hours_failed"]
+        assert (
+            engine.diagnostics_data(engine.EngineState(), None)["first_hours_failed"]
+            == []
+        )
+
+
 class TestDiagnostics:
     """The diagnostics data of the engine."""
 

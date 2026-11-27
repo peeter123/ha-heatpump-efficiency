@@ -76,8 +76,10 @@ class HeatPumpEfficiencyCoordinator(DataUpdateCoordinator[EngineResult]):
     """One coordinator per entry; no polling, refreshed by the 5-minute tracker.
 
     helpers/update_coordinator.py DataUpdateCoordinator with update_interval=None
-    schedules nothing itself. A failed read never raises UpdateFailed (the engine
-    turns it into unknown periods), so the sensors stay available.
+    schedules nothing itself. A failed read never raises UpdateFailed: the engine
+    turns it into ``read_failed`` results, so the coordinator stays successful and
+    only the sensors whose value needs the failed read are unavailable (not
+    unknown; ``EfficiencySensor.available``), the others keep their figures.
     """
 
     config_entry: HeatPumpEfficiencyConfigEntry
@@ -104,10 +106,11 @@ class HeatPumpEfficiencyCoordinator(DataUpdateCoordinator[EngineResult]):
         result = await async_update(
             self.engine_state, self.mapping, self._reader, dt_util.utcnow(), tz
         )
-        # Log a read error once when it appears or changes, and when it clears.
+        # Log a read error once when it appears or changes, and when it clears, both at
+        # info level (design D6; the affected sensors are unavailable meanwhile).
         for key, old, new in error_changes(previous, self.engine_state.errors):
             if new is not None:
-                _LOGGER.warning("Statistics read '%s' failed: %s", key, new)
+                _LOGGER.info("Statistics read '%s' failed: %s", key, new)
             elif old is not None:
                 _LOGGER.info("Statistics read '%s' works again", key)
         # Design D7: the health check runs after every update, on the event loop. It

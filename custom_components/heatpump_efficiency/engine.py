@@ -36,7 +36,10 @@ One update (``async_update``):
    taken from those last row ends.
 2. A failed read is stored as a ``TableRead`` with ``rows=None`` and its error is
    kept in ``EngineState.errors``; it never raises out of the update. Periods
-   that need it are ``None`` (``efficiency.period_energy``).
+   that need it are ``None`` (``efficiency.period_energy``) and carry
+   ``read_failed`` (design D4 of ``reach-silver-quality-scale``: the sensor is
+   then unavailable, not unknown). ``failed_sources`` and the helpers after
+   ``error_changes`` name which results depend on a failed read.
 3. ``compute`` gives per service and Overall the four period results and the
    daily and monthly series, all ending at the service's coverage end. Every
    service is unknown until the metadata has been read successfully once
@@ -47,8 +50,10 @@ One update (``async_update``):
    finished season from the boundary readings (``EngineState.boundaries``): one
    ``hour`` read of the ``sum`` per boundary instant for all statistics that need
    it. ``boundary_actions`` (pure) decides which boundaries are read; they are read
-   after the tables, at the end of the update. A failed read or a statistic without
-   a reading makes only the seasons that need it unknown. A failed read is read
+   after the tables, at the end of the update. A failed read makes the shown season
+   ``read_failed`` when it needs it (older seasons only get null points); a statistic
+   without a reading makes it unknown. A boundary is not read while the table of a needed
+   statistic's last row end failed; it counts as a failed read (``after_failed_read``). A failed read is read
    again at the next update, a ``pending`` reading once the statistic's last row
    ends at or after the boundary; a ``no_row`` reading is final (design D4).
    Cooling's periods, series and seasons carry the unit factor (``Service.factor``).
@@ -64,7 +69,8 @@ One update (``async_update``):
    baselines with the first hours, ``EngineState.baselines`` keeps them, and they are
    applied to the defrost statistics only (``period_energy``, the boundary readings).
 6. A failed first-hours read is retried at every update. Until the first
-   successful read it makes the services of the affected IDs unknown; after
+   successful read it makes the services of the affected IDs unknown and
+   ``read_failed`` (``EngineState.first_hours_failed``); after
    that the last good first hours are kept (a backfill that moves a first hour
    shows once a refresh succeeds).
 """
@@ -196,6 +202,9 @@ class EngineState:
     errors: dict[str, str | None] = field(
         default_factory=dict
     )  # last error per read, None if ok
+    # The statistic IDs whose first-hours read failed at the last attempt (empty when
+    # it worked); with ``first_hours`` it tells a never-read first hour from a missing one.
+    first_hours_failed: frozenset[str] = frozenset()
     updated_at: datetime | None = None
 
 
@@ -215,6 +224,8 @@ class PeriodResult:
         None  # ISO in the time zone; set when the period starts before the defrost statistics
     )
     corrected: bool = False  # the service has defrost statistics
+    # A statistics read that the value needs failed (design D4): the sensor is unavailable.
+    read_failed: bool = False
 
 
 @dataclass(frozen=True)
@@ -226,7 +237,8 @@ class SeasonResult:
     no season has begun (``period_start`` and ``season_end`` are then None too).
     ``period_start`` is the covered start and ``season_end`` the natural end (ISO,
     in the time zone). ``points`` is the whole history, oldest first
-    (``seasons.season_points``).
+    (``seasons.season_points``). ``read_failed``: a read that the shown season needs
+    failed, so the sensor is unavailable (design D4).
     """
 
     efficiency: float | None
@@ -242,6 +254,7 @@ class SeasonResult:
     efficiency_uncorrected: float | None = None
     defrost_since: str | None = None
     corrected: bool = False
+    read_failed: bool = False
 
 
 @dataclass(frozen=True)
@@ -345,6 +358,95 @@ def mapped_ids(mapping: Mapping[str, Any]) -> list[str]:
     an unconfigured Heating or Hot water section is, through Overall.
     """
     return sorted(frozenset().union(*(s.all_ids for s in services_of(mapping))))
+
+
+# --- which results depend on a failed read (design D4) ---------------------------
+
+
+def failed_sources(state: EngineState) -> frozenset[str]:
+    """The tables whose cached read failed (``TableRead.rows`` is None)."""
+    return frozenset(
+        source for source, table in state.tables.items() if table.rows is None
+    )
+
+
+def recent_source(hourly: bool) -> str:
+    """The table a service reads today from: ``hour`` when it reads hourly, else ``5minute``."""
+    return eff.SOURCE_HOUR if hourly else eff.SOURCE_5MINUTE
+
+
+def last_end_source(statistic_id: str, hourly_only_ids: frozenset[str]) -> str:
+    """The table a statistic's last row end comes from (``efficiency.last_row_ends``).
+
+    ``hour`` for an hourly-only statistic, ``5minute`` for a recorder one, also when
+    its service reads hourly.
+    """
+    return eff.SOURCE_HOUR if statistic_id in hourly_only_ids else eff.SOURCE_5MINUTE
+
+
+def ranges_read_failed(
+    state: EngineState,
+    service: Service,
+    hourly_only_ids: frozenset[str],
+    ranges: Iterable[eff.Range] | None,
+) -> bool:
+    """Whether a period or a running season needs a failed read.
+
+    Inputs: the state (its cached tables), the service, the hourly-only IDs and the
+    ranges (None: no ranges). True when the service's recent table failed
+    (``coverage_end`` is then ``NO_COVERAGE`` for every period), when the table of one
+    of the ranges failed, or when a day or month table of a range does not cover one
+    of the service's IDs while the table of that ID's last row end
+    (``last_end_source``) failed at this update: the coverage of that table comes from
+    those last row ends (``efficiency.coverage``).
+    """
+    failed = failed_sources(state)
+    hourly = eff.reads_hourly(service.all_ids, hourly_only_ids)
+    if recent_source(hourly) in failed:
+        return True
+    for rng in ranges or ():
+        if rng.source in failed:
+            return True
+        table = state.tables.get(rng.source)
+        if (
+            rng.source in eff.HISTORY_SOURCES
+            and table is not None
+            and any(
+                statistic_id not in table.covered
+                and last_end_source(statistic_id, hourly_only_ids) in failed
+                for statistic_id in service.all_ids
+            )
+        ):
+            return True
+    return False
+
+
+def boundary_read_failed(state: EngineState, info: sea.SeasonInfo) -> bool:
+    """Whether a finished season needs a boundary whose read failed.
+
+    True when the cached ``BoundaryRead`` at its covered start or natural end has no
+    readings. A boundary that was never read is not a failed read, and
+    ``after_failed_read`` keeps the readings of an earlier good read.
+    """
+    return any(
+        (cached := state.boundaries.get(instant)) is not None
+        and cached.readings is None
+        for instant in sea.boundary_instants(info)
+    )
+
+
+def service_read_failed(state: EngineState, service: Service, known: bool) -> bool:
+    """Whether a whole service depends on a never-read metadata or first hour.
+
+    Inputs: the state, the service and ``known`` from ``resolve_effective``. True when
+    the metadata has never been read and its last read failed, or when a first hour
+    of one of its statistics has never been read (``known`` is False) and the last
+    first-hours read of one of its statistics failed. A later failure keeps the last
+    good metadata and first hours, so nothing is unavailable then.
+    """
+    if not state.metadata_ok and state.errors.get(ERROR_METADATA):
+        return True
+    return not known and not state.first_hours_failed.isdisjoint(service.all_ids)
 
 
 # --- first statistics hours ------------------------------------------------
@@ -683,12 +785,27 @@ async def _refresh_boundaries(
     for instant in [i for i in state.boundaries if i not in needed]:
         del state.boundaries[instant]
     errors = []
+    hourly_only_ids = eff.hourly_only(state.metadata)
+    failed = failed_sources(state)
     for instant in boundary_actions(
         state.boundaries, needed, state.first_hours, now, tz, last_row_end
     ):
         ids = needed[instant]
         first_hours = {i: state.first_hours.get(i) for i in sorted(ids)}
         window = eff.Window(instant - sea.BOUNDARY_WINDOW, instant)
+        # The readings' last row ends come from the recent tables: with one of them failed
+        # at this update the boundary is not read, and counts as a failed read (design D4);
+        # it is read at the first update at which that table works again.
+        behind = sorted({last_end_source(i, hourly_only_ids) for i in ids} & failed)
+        if behind:
+            errors.append(
+                f"{instant.isoformat()}: the {', '.join(behind)} read failed, "
+                "so the last statistics are unknown"
+            )
+            state.boundaries[instant] = after_failed_read(
+                state.boundaries.get(instant), first_hours, now
+            )
+            continue
         try:
             rows = await reader.read(
                 eff.SOURCE_HOUR, ids, window, BOUNDARY_UNITS, BOUNDARY_TYPES
@@ -845,7 +962,8 @@ async def _refresh_first_hours(
     stream the whole hourly history of every other statistic (design D4).
 
     ``first_hours_read_at`` moves only when every ID of both groups was read, so a
-    failure is retried at every update. Until an ID has been read once its services are
+    failure is retried at every update. ``first_hours_failed`` is the set of IDs whose
+    read failed at this attempt. Until an ID has been read once its services are
     unknown; after that its last good first hour is kept (a backfill that moves
     a first hour shows once a refresh succeeds). A statistic that exists again later in the day
     keeps the entry of this read (None when it had no rows) until the next
@@ -875,6 +993,7 @@ async def _refresh_first_hours(
             else:
                 state.baselines[statistic_id] = baselines[statistic_id]
         all_errors.update(errors)
+    state.first_hours_failed = frozenset(all_errors)
     state.errors[ERROR_FIRST_HOURS] = (
         "; ".join(
             f"{statistic_id}: {text}"
@@ -1003,7 +1122,7 @@ def compute(
                 state, service, effective, hourly_only_ids, last_ends, now, tz
             )
             if known and state.metadata_ok
-            else _unknown_result(service)
+            else _unknown_result(service, service_read_failed(state, service, known))
         )
     return EngineResult(
         results,
@@ -1015,13 +1134,15 @@ def compute(
     )
 
 
-def _unknown_result(service: Service) -> ServiceResult:
+def _unknown_result(service: Service, read_failed: bool = False) -> ServiceResult:
     corrected = bool(service.defrost_ids)
-    unknown = PeriodResult(None, None, None, None, False, corrected=corrected)
+    unknown = PeriodResult(
+        None, None, None, None, False, corrected=corrected, read_failed=read_failed
+    )
     season = (
         None
         if service.season_dates is None
-        else _season_result([], [], corrected=corrected)
+        else _season_result([], [], corrected=corrected, read_failed=read_failed)
     )
     return ServiceResult(
         dict.fromkeys(eff.PERIODS, unknown), [], [], None, season, service.defrost_ids
@@ -1041,16 +1162,28 @@ def _season_result(
     defrost_since: datetime | None = None,
     tz: tzinfo | None = None,
     corrected: bool = False,
+    read_failed: bool = False,
 ) -> SeasonResult:
     """The season sensor values: the last season of the history is the one shown.
 
     ``uncorrected`` is the last season's efficiency without the defrost correction,
     ``defrost_since`` the defrost start (the ``defrost_since`` of the result only when
     the shown point is ``defrost_partial``); both only for a service with defrost IDs.
+    ``read_failed`` marks the sensor unavailable (design D4).
     """
     if not infos:
         return SeasonResult(
-            None, None, None, None, None, False, False, False, [], corrected=corrected
+            None,
+            None,
+            None,
+            None,
+            None,
+            False,
+            False,
+            False,
+            [],
+            corrected=corrected,
+            read_failed=read_failed,
         )
     info, point = infos[-1], points[-1]
     since = None
@@ -1075,6 +1208,7 @@ def _season_result(
         uncorrected,
         since,
         corrected,
+        read_failed,
     )
 
 
@@ -1122,6 +1256,7 @@ def _service_season(
     effective: datetime | None,
     end: datetime,
     hourly: bool,
+    hourly_only_ids: frozenset[str],
     defrost_start: datetime | None,
     now: datetime,
     tz: tzinfo,
@@ -1138,10 +1273,14 @@ def _service_season(
         return None
     infos = season_infos(service, effective, now, tz)
     firsts = _defrost_firsts(state, service)
+    read_failed = False
     energies: list[tuple[float | None, float | None]] = []
     defrost: list[float | None] = []
     for info in infos:
+        shown = info is infos[-1]
         if info.ended:
+            if shown:
+                read_failed = boundary_read_failed(state, info)
             start_readings = _readings_at(state, info.covered_start)
             end_readings = _readings_at(state, info.natural_end)
             energies.append(
@@ -1157,6 +1296,10 @@ def _service_season(
             )
         else:
             ranges = sea.running_ranges(info, now, tz, end, hourly)
+            if shown:
+                read_failed = ranges_read_failed(
+                    state, service, hourly_only_ids, ranges
+                )
             energies.append(
                 (None, None)
                 if ranges is None
@@ -1178,6 +1321,7 @@ def _service_season(
             sea.season_points(
                 infos, energies, service.measured_since, tz, service.factor
             ),
+            read_failed=read_failed,
         )
     points = sea.season_points(
         infos,
@@ -1189,7 +1333,9 @@ def _service_season(
         defrost_start,
     )
     uncorrected = eff.ratio(*energies[-1], service.factor) if energies else None
-    return _season_result(infos, points, uncorrected, defrost_start, tz, True)
+    return _season_result(
+        infos, points, uncorrected, defrost_start, tz, True, read_failed
+    )
 
 
 def _service_result(
@@ -1233,6 +1379,7 @@ def _service_result(
             summary.get("efficiency_uncorrected"),
             since,
             corrected,
+            ranges_read_failed(state, service, hourly_only_ids, ranges[period]),
         )
     args = (
         state.tables,
@@ -1254,7 +1401,17 @@ def _service_result(
         eff.daily_series(*args),
         eff.monthly_series(*args),
         None if effective is None else effective.isoformat(),
-        _service_season(state, service, effective, end, hourly, defrost_start, now, tz),
+        _service_season(
+            state,
+            service,
+            effective,
+            end,
+            hourly,
+            hourly_only_ids,
+            defrost_start,
+            now,
+            tz,
+        ),
         service.defrost_ids,
         None if defrost_start is None else defrost_start.astimezone(tz).isoformat(),
     )
@@ -1369,6 +1526,7 @@ def diagnostics_data(state: EngineState, result: EngineResult | None) -> dict[st
         "metadata": [dict(m) for m in state.metadata],
         "first_hours": {k: _iso(v) for k, v in sorted(state.first_hours.items())},
         "first_hours_read_at": _iso(state.first_hours_read_at),
+        "first_hours_failed": sorted(state.first_hours_failed),
         "updated_at": _iso(state.updated_at),
         "windows": {
             source: {"start": _iso(w.start), "end": _iso(w.end)}

@@ -68,6 +68,25 @@ class EfficiencySensor(CoordinatorEntity[HeatPumpEfficiencyCoordinator], SensorE
         return None if service is None else service.periods.get(self._spec.period)
 
     @property
+    def _read_failed(self) -> bool:
+        """Whether a read that the period needs failed (``PeriodResult.read_failed``)."""
+        period = self._period
+        return period is not None and period.read_failed
+
+    @property
+    def available(self) -> bool:
+        """Whether the coordinator works and the period's own reads did not fail.
+
+        helpers/update_coordinator.py CoordinatorEntity.available is the coordinator's
+        last_update_success. helpers/entity.py Entity._stringify_state, called from
+        Entity.__async_calculate_state, writes the state ``unavailable`` when this is
+        False, and Entity.__async_calculate_state adds the state attributes and the
+        extra state attributes only in its ``if available:`` branch. A missing result
+        leaves the coordinator's value (design D5).
+        """
+        return super().available and not self._read_failed
+
+    @property
     def native_value(self) -> float | None:
         """The efficiency, or None when the period is unknown."""
         period = self._period
@@ -124,6 +143,12 @@ class SeasonEfficiencySensor(EfficiencySensor):
     def _season(self) -> SeasonResult | None:
         service = self._service
         return None if service is None else service.season
+
+    @property
+    def _read_failed(self) -> bool:
+        """Whether a read that the shown season needs failed (``SeasonResult.read_failed``)."""
+        season = self._season
+        return season is not None and season.read_failed
 
     @property
     def native_value(self) -> float | None:
