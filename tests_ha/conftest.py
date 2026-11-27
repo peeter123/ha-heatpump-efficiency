@@ -1,19 +1,11 @@
 """Fixtures for the Home Assistant tests."""
 
-import pytest
-
-# The test hass mounts the plugin's testing_config/ (a regular custom_components package) at sys.path[0] and
-# imports custom_components. Importing ours first, during collection, makes the loader iterate the repository's
-# namespace package (ha-core 2026.10.4 homeassistant/loader.py _async_mount_config_dir).
+# The test hass uses the configuration folder <ha_test_root>/testing_config, with ha_test_root defaulting to tests
+# (pytest-homeassistant 2026.11.2 _paths.py configure, common.py get_test_config_dir); this repository does not have
+# it. The loader mounts it with loader.async_setup -> async_mount_config_dir, then lists custom
+# integrations by importing custom_components (ha-core 2026.11.2 homeassistant/loader.py _get_custom_components).
+# Importing ours first, during collection, puts the repository's namespace package into sys.modules, so that
+# import finds our custom_components/ whether or not the configuration folder exists. The ``hass`` fixture of
+# pytest-homeassistant 2026.11.2 (plugins.py, with ``custom_integrations_enabled`` true by default) pops
+# loader.DATA_CUSTOM_COMPONENTS, so the integration is found without a wrapper fixture.
 import custom_components.heatpump_efficiency  # noqa: F401
-
-
-@pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(recorder_mock, enable_custom_integrations):
-    """Let Home Assistant load the integration from custom_components/.
-
-    recorder_mock comes first on purpose, because enable_custom_integrations starts hass and the recorder must be
-    set up before that. ha-test-harness: pytest-homeassistant-custom-component 0.13.375, plugins.py
-    recorder_db_url asserts that hass is not set up yet; its README says recorder_mock must be initialized before
-    enable_custom_integrations (issue 132). The manifest depends on recorder.
-    """

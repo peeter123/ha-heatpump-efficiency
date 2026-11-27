@@ -7,13 +7,15 @@ live installation.
 
 ## 1. Core's test package
 
-- [ ] 1.1 Amend `openspec/config.yaml` as in design D8: the Tooling paragraph lets `tests_ha/` use
+- [x] 1.1 Amend `openspec/config.yaml` as in design D8: the Tooling paragraph lets `tests_ha/` use
   `pytest-homeassistant`, `pytest-cov` and `coverage` at exact versions through uv, in CI and locally only on Linux
   or macOS, with the pin rule (the release equal to the target Home Assistant version, or the newest before it);
-  the `ha-test-harness` source tag names `pytest-homeassistant`. Make the same edits in `AGENTS.md`'s Layout and
+  `pytest-cov` and `coverage` are core's pins in `requirements_test.txt` at the target tag and move with it; the
+  CI coverage run of `tests/` uses the `scripts/lint.py` pins plus those two tools, the one run of `tests/`
+  outside the lint entry point; the `ha-test-harness` source tag names `pytest-homeassistant`. Make the same edits in `AGENTS.md`'s Layout and
   "Rules in short". Verify: neither file names `pytest-homeassistant-custom-component`, and
   `openspec validate reach-silver-quality-scale --strict` passes.
-- [ ] 1.2 Move `tests_ha/` to the new package (design D1):
+- [x] 1.2 Move `tests_ha/` to the new package (design D1):
   - imports from `pytest_homeassistant`;
   - the autouse wrapper fixture removed from `tests_ha/conftest.py`;
   - the comments that cite `pytest-homeassistant-custom-component` 0.13.375 or Home Assistant 2026.10.4 re-cited
@@ -23,13 +25,13 @@ live installation.
   import. If it does not, use D1's fallback (`-o ha_test_root=tests_ha` with an empty `tests_ha/testing_config/`)
   and record the outcome in design D1 with the date. Verify: `python scripts/lint.py` exits 0; the CI run of the
   group is the check of the harness.
-- [ ] 1.3 Update the `ha-tests` job in `.github/workflows/validate.yml` (design D1, D2 step 1): `--with
+- [x] 1.3 Update the `ha-tests` job in `.github/workflows/validate.yml` (design D1, D2 step 1): `--with
   pytest-homeassistant==2026.11.2 --with pytest-cov==7.1.0 --with coverage==7.16.2`, `-p no:respx`, the
   `--cov=custom_components/heatpump_efficiency` path source, and the config flow gate on the same pins. Update
   the workflow tests in `tests/test_integration_files.py` for the scenario "Pinned test package": an exact
   `pytest-homeassistant==` pin, no `pytest-homeassistant-custom-component`, Python 3.14, `tests_ha`. Verify:
   `python scripts/lint.py` exits 0.
-- [ ] 1.4 Update the README's Development section: the Home Assistant test commands with the new pins and
+- [x] 1.4 Update the README's Development section: the Home Assistant test commands with the new pins and
   `-p no:respx`. Verify: the commands in the README equal those in the workflow, and the README does not name the
   old package.
 
@@ -75,8 +77,8 @@ live installation.
   `test_sensor.py`, `test_diagnostics.py` and `test_issues.py`.
   - `test_coordinator.py` covers the `period-efficiency` scenarios "Month read fails for one update" (the states
     `unavailable` and back), "Recent read fails" and "Logged once" (`caplog`, info level), through the harness.
-  - In `tests_ha/test_config_flow.py`, drop the setup and unload patches where the real setup now runs, and the
-    2026.10.4 comment (D7).
+  - In `tests_ha/test_config_flow.py`, drop the setup and unload patches where the real setup now runs (D7; group 1
+    already removed the 2026.10.4 comment).
 
   Verify: `python scripts/lint.py` exits 0 (compile and ruff); the CI run is the check of the harness.
 - [ ] 3.3 Extend the `ha-tests` job with D2 steps 2 to 5: the `tests/` run under coverage with `--cov-append`, the

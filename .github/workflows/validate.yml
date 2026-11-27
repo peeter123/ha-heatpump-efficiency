@@ -50,10 +50,15 @@ jobs:
       - name: Run the Home Assistant tests
         run: >-
           uv run --no-project --python 3.14
-          --with pytest-homeassistant-custom-component==0.13.375
-          pytest tests_ha --cov=custom_components.heatpump_efficiency --cov-branch --cov-report=term-missing
+          --with pytest-homeassistant==2026.11.2
+          --with pytest-cov==7.1.0
+          --with coverage==7.16.2
+          pytest tests_ha -p no:respx
+          --cov=custom_components/heatpump_efficiency --cov-branch --cov-report=
       - name: Require full coverage of the config flow
         run: >-
           uv run --no-project --python 3.14
-          --with pytest-homeassistant-custom-component==0.13.375
+          --with pytest-homeassistant==2026.11.2
+          --with pytest-cov==7.1.0
+          --with coverage==7.16.2
           coverage report --include="*/config_flow.py" --fail-under=100

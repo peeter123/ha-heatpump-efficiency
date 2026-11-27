@@ -386,12 +386,17 @@ class TestWorkflow:
         assert "uv run --no-project" in section
         assert re.search(r"--python\s+3\.14\b", section)
         assert re.search(
-            r"--with\s+pytest-homeassistant-custom-component==\d+\.\d+\.\d+\b", section
+            r"--with\s+pytest-homeassistant==\d+\.\d+\.\d+\b(?!-)", section
         )
+        assert "pytest-homeassistant-custom-component" not in section
         assert re.search(
             r"version:\s*\"?\d+\.\d+\.\d+\"?\s", section
         )  # an exact uv version
-        assert "pytest tests_ha --cov=custom_components.heatpump_efficiency" in section
+        assert re.search(r"\bpytest tests_ha\b", section)
+        assert "--cov=custom_components/heatpump_efficiency" in section  # a path source
+        assert (
+            "-p no:respx" in section
+        )  # respx would import httpx before Home Assistant aliases it
 
     def test_home_assistant_tests_job_gates_config_flow_coverage_at_100_percent(self):
         """The Home Assistant tests job requires full config flow coverage."""

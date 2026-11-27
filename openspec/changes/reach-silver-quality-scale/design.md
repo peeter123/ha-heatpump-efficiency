@@ -64,6 +64,20 @@ See proposal.md, "Why". The current state that the decisions build on:
   - if it does, the conftest keeps its early import, with the comment updated to the new package;
   - if not, the command sets `-o ha_test_root=tests_ha` with an empty `tests_ha/testing_config/`, the layout the
     README describes. That folder is a test fixture and must not be imported as a test package.
+  - **Outcome, 2026-11-27: the early import is enough; no fallback.** Read in the 2026.11.2 wheel (not run) and in
+    core at the tag:
+    - `_paths.configure` and `common.get_test_config_dir` give the configuration folder
+      `<ha_test_root>/testing_config`, with `ha_test_root` defaulting to `tests`, a folder this repository lacks; `plugins.py` `hass_config_dir` returns it and `async_test_home_assistant` in
+      `common.py` passes it to `HomeAssistant` and calls `loader.async_setup`, which runs
+      `loader.async_mount_config_dir` (ha-core: `homeassistant/loader.py`). That function puts the folder on
+      `sys.path`, tries `import custom_components` and ignores an `ImportError`; the missing folder is harmless.
+    - `loader._get_custom_components` then imports `custom_components` and lists every folder in its `__path__`.
+      The conftest's early import puts the repository's `custom_components` into `sys.modules` during
+      collection, so that import finds it whether or not the configuration folder exists.
+    - The wheel's own `testing_config/` is imported only through relative imports inside the package
+      (`common.py`), never as a top-level `custom_components`, so it does not shadow ours. Nothing in `plugins.py`
+      needs the folder to exist (`hass_tmp_config_dir` is used only when a test requests it).
+    - The conftest comment is rewritten against this. The CI run of group 1 is the check of the harness.
 
 ### D2. Coverage over both test folders
 
@@ -184,8 +198,8 @@ All tests use synthetic statistics written with `async_import_statistics` in the
   coordinator module imports them, raising for one source. The engine's own handling is already covered in
   `tests/`.
 - **The config flow tests** drop their patches of `async_setup_entry` and `async_unload_entry` where the real
-  setup now works on 2026.11.2. The comment about the 2026.10.4 difference goes; the patches stay only where a
-  test checks the flow alone.
+  setup now works on 2026.11.2 (group 1 already removed the comment about the 2026.10.4 difference); the patches
+  stay only where a test checks the flow alone.
 
 ### D8. Record, manifest and constitution
 
@@ -201,6 +215,10 @@ All tests use synthetic statistics written with `async_import_statistics` in the
   - `tests_ha/` may use `pytest-homeassistant` with `pytest-cov` and `coverage`, each at an exact version through
     uv, in CI and locally only on Linux or macOS;
   - the pin rule reads: the release equal to the target Home Assistant version, or the newest before it;
+  - `pytest-cov` and `coverage` are core's pins in `requirements_test.txt` at the target tag, and move with it
+    (owner's decision 2026-11-27);
+  - the CI coverage run of `tests/` (D2 step 2) uses the pins of `scripts/lint.py` plus `pytest-cov` and
+    `coverage`; it is the one run of `tests/` outside the lint entry point (owner's decision 2026-11-27);
   - the source tag `ha-test-harness` names `pytest-homeassistant`.
 - **`AGENTS.md`:** its Layout and "Rules in short" match.
 - **`scripts/coverage_gate.py`** is standard library like the other scripts, so the rule "standard library only

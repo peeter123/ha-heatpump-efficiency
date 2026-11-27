@@ -2,18 +2,15 @@
 
 The statistics are synthetic: made-up statistic IDs written into the throwaway test recorder. The integration
 itself only reads statistics. ``async_setup_entry`` and ``async_unload_entry`` are patched to return ``True``, so
-these tests cover the flows and not the setup or unload (which also differ between Home Assistant 2026.10.4 and
-2026.11).
+these tests cover the flows and not the setup or unload.
 """
 
 from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.components.recorder.common import (
-    async_wait_recording_done,
-)
+from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.components.recorder.common import async_wait_recording_done
 
 from custom_components.heatpump_efficiency import sensor_model
 from custom_components.heatpump_efficiency.const import DOMAIN
@@ -64,11 +61,12 @@ SEASON_FIELDS = {
 async def setup_entry(recorder_mock, hass):
     """Patch the setup and unload of the entry, so the flows end without starting the coordinator.
 
-    ha-test-harness: pytest-homeassistant-custom-component 0.13.375, plugins.py ``hass`` unloads every LOADED
-    entry after its ``yield``. The real ``async_unload_entry`` needs ``async_unload_platforms_or_raise``, which
-    Home Assistant 2026.10.4 lacks, so the unload is patched too and the entries are unloaded here, while both
-    patches are active. This fixture requests ``hass``, so pytest tears it down before ``hass``; it requests
-    ``recorder_mock`` first to keep the order the conftest needs.
+    ha-test-harness: pytest-homeassistant 2026.11.2, plugins.py ``hass`` unloads every LOADED entry after its
+    ``yield``. The unload is patched to match the patched setup: no platform was forwarded, so the real unload has
+    nothing to unload (ha-core 2026.11.2 config_entries.py ``ConfigEntries.async_forward_entry_unload``). The
+    entries are unloaded here, while both patches are active. This fixture requests ``hass``, so pytest tears it
+    down before ``hass``; it requests ``recorder_mock`` first, because plugins.py ``recorder_db_url`` asserts that
+    hass is not set up yet.
     """
     with (
         patch(
@@ -92,7 +90,7 @@ def _add_statistic(
 ):
     """Queue one hourly point of a synthetic statistic in the test recorder."""
     # recorder/models/statistics.py StatisticMetaData and recorder/statistics.py async_import_statistics
-    # (Home Assistant 2026.10.4): the source of an entity ID statistic is "recorder"; a start on the hour.
+    # (ha-core 2026.11.2): the source of an entity ID statistic is "recorder"; a start on the hour.
     metadata = StatisticMetaData(
         mean_type=StatisticMeanType.NONE if has_sum else StatisticMeanType.ARITHMETIC,
         has_sum=has_sum,
@@ -129,7 +127,7 @@ async def statistics(hass):
         _add_statistic(hass, statistic_id)
     _add_statistic(hass, POWER, unit="W", unit_class="power", has_sum=False)
     _add_statistic(hass, MEAN_ONLY, has_sum=False)
-    # ha-test-harness: pytest-homeassistant-custom-component 0.13.375, components/recorder/common.py
+    # ha-test-harness: pytest-homeassistant 2026.11.2, components/recorder/common.py async_wait_recording_done
     await async_wait_recording_done(hass)
 
 
@@ -457,7 +455,7 @@ async def test_options_flow_shows_the_form_with_the_stored_values(hass):
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "init"
     assert result["errors"] == {}
-    # homeassistant/data_entry_flow.py add_suggested_values_to_schema (2026.10.4) puts the stored value in the
+    # homeassistant/data_entry_flow.py add_suggested_values_to_schema (2026.11.2) puts the stored value in the
     # marker's description["suggested_value"], inside the section's own schema.
     sections = {str(key): value for key, value in result["data_schema"].schema.items()}
     fields = {str(key): key for key in sections["heating"].schema.schema}

@@ -42,7 +42,7 @@ context: |
   Sources of truth, and how artifacts cite them:
   - ha-core: the Home Assistant Core source at tag 2026.11.2 (file and function).
   - ha-docs: developers.home-assistant.io or home-assistant.io pages.
-  - ha-test-harness: pytest-homeassistant-custom-component at the pinned version (file and fixture); tests_ha/
+  - ha-test-harness: pytest-homeassistant at the pinned version (file and fixture); tests_ha/
     cites it where a test depends on fixture behaviour, such as fixture order.
   - firmware-entity: the entities of the author's own ESPHome firmware, used only as the live example mapping.
   - derived: a value the integration computes; every derived value names its inputs and is a pure, unit-tested
@@ -55,10 +55,12 @@ context: |
   all Python. Every tool runs at an exact version through uv, from the one entry point scripts/lint.py, which holds
   the pins; uv is the one program taken from PATH besides Python, and uv itself is pinned to an exact version in
   the workflow. The tests in tests_ha/ are the exception: they may use
-  pytest-homeassistant-custom-component, at an exact version, run through uv, in CI and locally only on Linux or
-  macOS (its runner does not load on Windows). The package pin is the release that pins the target Home Assistant
-  version, or the newest release that pins an earlier one; it moves only to such a release. The ruff settings are
-  those of Home Assistant core's pyproject.toml at the target tag (see pyproject.toml).
+  pytest-homeassistant, pytest-cov and coverage, each at an exact version, run through uv, in CI and locally only
+  on Linux or macOS (the harness does not load on Windows). The pytest-homeassistant pin is the release equal to
+  the target Home Assistant version, or the newest release before it; it moves only to such a release. The
+  pytest-cov and coverage pins are core's in requirements_test.txt at the target tag and move with it. The CI
+  coverage run of tests/ uses the pins of scripts/lint.py plus pytest-cov and coverage; it is the one run of tests/
+  outside the lint entry point. The ruff settings are those of Home Assistant core's pyproject.toml at the target tag (see pyproject.toml).
   Validation: python scripts/lint.py (ruff check, ruff format check, the tests in tests/ and a compile check);
   check that it exits with 0.
   Tasks are checked off after these pass; for a change on a work branch, the CI run of the group's commit

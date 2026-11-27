@@ -85,15 +85,6 @@ ALL_RULES = {
 }
 
 
-@pytest.fixture(autouse=True)
-def auto_enable_custom_integrations():
-    """Override the conftest fixture of the same name: these tests only read files and need no hass.
-
-    pytest: a fixture defined in a test module overrides a conftest fixture of the same name for that module
-    (docs.pytest.org, "Override a fixture on a test module level"), so no Home Assistant or recorder is started.
-    """
-
-
 RULE_TIER = {rule: tier for tier, rules in ALL_RULES.items() for rule in rules}
 
 

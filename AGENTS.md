@@ -14,8 +14,10 @@ Read it, and the active change in `openspec/changes/`, before any work.
 - `tests/`: tests of the pure modules, run by `python scripts/lint.py` under pytest, pytest-asyncio and tzdata at
   exact versions through uv, without Home Assistant. The time zone tests use `zoneinfo`.
 - `tests_ha/`: pytest tests that run the integration in Home Assistant's test harness
-  (`pytest-homeassistant-custom-component`, the one third-party test dependency, run through uv, in CI and locally
-  only on Linux or macOS; the lint entry point checks that they compile).
+  (`pytest-homeassistant`, with `pytest-cov` and `coverage`, the third-party test dependencies of this folder, each
+  at an exact version through uv, in CI and locally only on Linux or macOS; the package version is the release equal
+  to the target Home Assistant version, or the newest before it, and `pytest-cov` and `coverage` are core's pins at
+  that tag; the lint entry point checks that they compile).
 - `pyproject.toml`: the ruff settings, copied from Home Assistant core's `pyproject.toml` at tag 2026.11.2 with
   only the adaptations commented in it, and the pytest settings (asyncio mode, `testpaths`) of both test folders.
 - `LICENSE`: the MIT licence.
@@ -36,8 +38,10 @@ Read it, and the active change in `openspec/changes/`, before any work.
 - Verify every Home Assistant API against the Core 2026.11.2 source and cite it.
 - No emoji; all user-facing text through translations.
 - Standard library only for the integration and `scripts/`; `tests/` may use pytest, pytest-asyncio and tzdata,
-  and `tests_ha/` `pytest-homeassistant-custom-component`; ruff lints all Python. Every tool runs at an exact
-  version through uv from `scripts/lint.py`; uv is the one program taken from PATH besides Python.
+  and `tests_ha/` `pytest-homeassistant`, `pytest-cov` and `coverage`; ruff lints all Python. Every tool runs at an
+  exact version through uv from `scripts/lint.py` (`tests_ha/` and the CI coverage run of `tests/` excepted;
+  `pytest-cov` and `coverage` are at core's pins at the target tag); uv is the one program taken from PATH besides
+  Python.
 - Validation: `python scripts/lint.py`, which must exit with 0.
 - Uncommitted planning artifacts of a change get their own commit before each task group; then one commit per
   task group, after its validation passes and its review is clean; never push, except the work branch

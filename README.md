@@ -697,12 +697,12 @@ fails and 2 when uv is missing or a program cannot be started. Add `--fix` to ap
 those of Home Assistant core's `pyproject.toml` at tag 2026.11.2, in `pyproject.toml`.
 
 The Home Assistant tests in `tests_ha/` run the integration inside Home Assistant's test harness
-(`pytest-homeassistant-custom-component`). They run in CI, or locally on Linux or macOS, because the harness does not
-load on Windows. To run them locally, with uv installed, run from the repository root
+(`pytest-homeassistant`, Home Assistant's own test package). They run in CI, or locally on Linux or macOS, because
+the harness does not load on Windows. To run them locally, with uv installed, run from the repository root
 
 ```sh
-uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 pytest tests_ha --cov=custom_components.heatpump_efficiency --cov-branch --cov-report=term-missing
-uv run --no-project --python 3.14 --with pytest-homeassistant-custom-component==0.13.375 coverage report --include="*/config_flow.py" --fail-under=100
+uv run --no-project --python 3.14 --with pytest-homeassistant==2026.11.2 --with pytest-cov==7.1.0 --with coverage==7.16.2 pytest tests_ha -p no:respx --cov=custom_components/heatpump_efficiency --cov-branch --cov-report=
+uv run --no-project --python 3.14 --with pytest-homeassistant==2026.11.2 --with pytest-cov==7.1.0 --with coverage==7.16.2 coverage report --include="*/config_flow.py" --fail-under=100
 ```
 
 The Home Assistant tests job fails unless `config_flow.py` has 100 % line and branch coverage.
