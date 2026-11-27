@@ -89,7 +89,7 @@ installation.
 ## Workflow follow-up
 
 - Whole-change review, then fast-forward `main` to `change/adopt-ruff-lint` and push, each push with the owner's
-  go. "Clean tree (live check)", "Harness runs in CI (live check)" and "First push (live check)" are the CI runs of
-  the work branch and of `main`.
-- Sync the `packaging` delta, archive, and commit to `main` after the leak check.
+  go. "Lint clean in CI (live check)", "Harness runs in CI (live check)" and "First push (live check)" are the CI runs
+  of the work branch and of `main`.
+- Sync the `packaging` and `efficiency-setup` deltas, archive, and commit to `main` after the leak check.
 - No release: the reformatted code ships with the Silver release (`reach-silver-quality-scale`).

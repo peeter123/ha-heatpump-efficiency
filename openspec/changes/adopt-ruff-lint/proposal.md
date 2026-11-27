@@ -71,6 +71,8 @@ None.
     - "Lint with Home Assistant core's ruff settings";
     - "One lint entry point";
     - "Tests in the pytest style".
+- `efficiency-setup`: the scenario "Pure check" of "Same heat pump not added twice" names the test suite in
+  `tests/` instead of the standard-library suite (added after the whole-change review, 2026-11-27).
 
 ## Tools checked
 

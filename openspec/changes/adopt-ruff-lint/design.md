@@ -133,8 +133,9 @@
   - It does not run `tests_ha/`: Home Assistant's harness does not load on Windows, and CI runs those tests in
     their own job.
   - It runs no Docker or remote runner. The sibling scripts that do have drifted (see "Risks").
-- **Ruff's file selection:** ruff respects `.gitignore`, so `private/` is never linted. The `openspec/` and
-  `.claude/` folders hold no Python.
+- **Ruff's file selection:** ruff respects `.gitignore`, so `private/` is never linted. The `openspec/`,
+  `.claude/` and `.agents/` folders hold no Python files, but ruff's formatter also checks the Python code blocks
+  of Markdown files there; they pass (2026-11-27).
 
 ### D4. Converting `tests/` to pytest
 
@@ -194,6 +195,16 @@
   - `validation.ERROR_PRIORITY`;
   - `engine.resolve_effective`.
 - The integration has no public Python API that other code imports, so the wider module surface costs nothing.
+
+### D5b. probatio instead of voluptuous
+
+- Core bans `voluptuous` (banned-api, "use probatio instead") and the alias `vol` for probatio (banned-aliases
+  `"probatio" = ["vol"]`) (ha-core: `pyproject.toml` at 2026.11.2).
+- `config_flow.py` therefore imports `probatio` and uses `probatio.Schema`, `probatio.Required` and
+  `probatio.Optional`, the names core's flow helpers build on (ha-core: `homeassistant/data_entry_flow.py` at
+  2026.11.2, `Required(probatio.Required)`, `Optional(probatio.Optional)`, `data_schema: probatio.Schema | None`).
+- probatio ships with Home Assistant (ha-core: `homeassistant/package_constraints.txt` at 2026.11.2,
+  `probatio==0.13.0`), so `manifest.json` gains no requirement (group 1, 2026-11-26; recorded 2026-11-27).
 
 ### D6. `from __future__ import annotations`
 

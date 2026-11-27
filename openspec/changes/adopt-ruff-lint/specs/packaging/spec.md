@@ -50,7 +50,7 @@ configuration SHALL keep core's complexity limit.
 - **WHEN** the test suite reads the per-file ignores in `pyproject.toml`
 - **THEN** no entry for `tests/` ignores the pytest-style rules (`PT009`, `PT027`) or the docstring rules (`D1`)
 
-#### Scenario: Clean tree (live check)
+#### Scenario: Lint clean in CI (live check)
 - **WHEN** a commit is pushed
 - **THEN** the lint job's ruff check and ruff format check pass with no findings
 
@@ -76,8 +76,8 @@ every tool through uv or uvx at an exact version, never from PATH, and print the
 - **WHEN** the lint entry point runs with `--fix`
 - **THEN** it applies ruff's fixes and the formatter first, then runs every check
 
-#### Scenario: Runs on Windows
-- **WHEN** the lint entry point runs on Windows
+#### Scenario: Runs on Windows (live check)
+- **WHEN** the lint entry point runs on a Windows machine
 - **THEN** the tests in `tests/` run in an environment without Home Assistant, so no Home Assistant plugin loads,
   and they pass
 
@@ -90,8 +90,8 @@ lose a test.
 - **WHEN** the test suite reads the files in `tests/`
 - **THEN** none imports `unittest` other than `unittest.mock`, and none defines a `TestCase` subclass
 
-#### Scenario: No test lost
-- **WHEN** pytest collects `tests/` after the conversion
+#### Scenario: No test lost (live check)
+- **WHEN** pytest collects `tests/` after the conversion to pytest style
 - **THEN** it collects at least 469 tests, and every test name from before the conversion (taken from the
-  inventory file `test-inventory.txt` in the change folder) is still collected, or is listed there with the tests
-  that replace it
+  inventory `openspec/changes/archive/2026-11-27-adopt-ruff-lint/test-inventory.txt`) is still collected, or is
+  listed there with the tests that replace it

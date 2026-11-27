@@ -1,9 +1,9 @@
 # Lint and test settings.
 #
 # The [tool.ruff*] sections are copied from Home Assistant core's pyproject.toml at tag 2026.11.2 (ruff 0.17.3, the
-# version core pins at that tag in requirements_test_pre_commit.txt). Only the entries marked "Adapted" and the
-# temporary ignore for tests/ differ from core. To refresh: when the target Home Assistant tag in openspec/config.yaml
-# moves, copy the sections again at the new tag and move the ruff pin in scripts/lint.py to core's.
+# version core pins at that tag in requirements_test_pre_commit.txt). Only the entries marked "Adapted" differ from
+# core. To refresh: when the target Home Assistant tag in openspec/config.yaml moves, copy the sections again at the
+# new tag and move the ruff pin in scripts/lint.py to core's.
 
 [tool.ruff]
 required-version = ">=0.17.3"
@@ -244,12 +244,16 @@ split-on-trailing-comma = false
 
 [tool.ruff.lint.per-file-ignores]
 
+# Adapted: core's entries for "homeassistant/__main__.py", "homeassistant/util/*", "homeassistant/auth/*/*" and
+# "benchmarks/**" are dropped; they have no counterpart here.
+
 # Adapted: core's "script/*" (T20) and "homeassistant/scripts/*" (T201) entries. The command-line scripts here write
 # to stdout. Core's "script/hassfest/*" (INP001) entry becomes INP001 for the same folder: the scripts are
 # stand-alone, not a package.
 "scripts/*" = ["T20", "INP001"]
 
-# Adapted: tests/ stays without __init__.py (see the change adopt-ruff-lint, design D4), so it is not a package.
+# Adapted: tests/ stays without __init__.py, so it is not a package. With one, core's banned-api entry for "tests"
+# and its relative-import rule (TID252) would forbid both ways of sharing the test_engine loader between test files.
 "tests/*" = ["INP001"]
 
 # Adapted: core's "homeassistant/components/*/*/*" entry, relative imports inside the integration, as inside a core
