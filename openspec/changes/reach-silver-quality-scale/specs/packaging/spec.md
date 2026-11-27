@@ -22,10 +22,10 @@ equals the target Home Assistant version or the newest version before it, run th
 The manifest's `quality_scale` SHALL be the highest tier (bronze, silver, gold or platinum) for which every rule of
 that tier and of the tiers below it is `done` or `exempt` in the record.
 
-#### Scenario: Silver declared
-- **WHEN** the Home Assistant tests in CI compare the manifest with the record, and every bronze and silver rule is
-  `done` or `exempt` while `strict-typing` (platinum) is `todo`
-- **THEN** the manifest's `quality_scale` is `silver` and the test passes
+#### Scenario: Gold declared
+- **WHEN** the Home Assistant tests in CI compare the manifest with the record, and every bronze, silver and gold
+  rule is `done` or `exempt` while `strict-typing` (platinum) is `todo`
+- **THEN** the manifest's `quality_scale` is `gold` and the test passes
 
 #### Scenario: Claimed tier not met
 - **WHEN** the manifest declares a tier for which a rule of that tier or a tier below is `todo`
@@ -60,4 +60,4 @@ CI SHALL measure the line and branch coverage of `custom_components/heatpump_eff
 
 ### Requirement: Declared tier backed by the record
 **Reason**: Its scenario "Bronze after this change" described the Bronze state of an earlier change.
-**Migration**: Replaced by "Declared tier matches the record", the same rule with the scenario "Silver declared".
+**Migration**: Replaced by "Declared tier matches the record", the same rule with the scenario "Gold declared".

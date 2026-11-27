@@ -208,6 +208,18 @@ def test_declared_tier_is_the_highest_supported(rules, manifest):
     )
 
 
+def test_gold_declared(rules, manifest):
+    """Requirement "Declared tier matches the record", scenario "Gold declared".
+
+    Every bronze, silver and gold rule is done or exempt while strict-typing (platinum) is todo, so the manifest
+    declares gold.
+    """
+    assert not unmet_rules(rules, "gold")
+    assert rule_status(rules["strict-typing"]) == "todo"
+    assert supported_tier(rules) == "gold"
+    assert manifest["quality_scale"] == "gold"
+
+
 def test_tier_helper_names_the_failing_rule(rules):
     """The tier helpers name the failing rule and stop at the right tier."""
     broken = dict(rules, brands={"status": "todo", "comment": "x"})

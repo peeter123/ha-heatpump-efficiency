@@ -46,22 +46,23 @@ rules:
   docs-configuration-parameters: done
   docs-installation-parameters: done
   entity-unavailable:
-    status: todo
+    status: done
     comment: >-
-      A failed statistics read logs a warning once and makes the affected periods unknown, but the sensors stay
-      available and no repair issue is raised. A follow-up change makes them unavailable.
+      Only the sensors whose value needs a failed statistics read become unavailable; the others keep their values.
   integration-owner: done
-  log-when-unavailable: done
+  log-when-unavailable:
+    status: done
+    comment: >-
+      Each new or changed failure and each recovery is logged once, at info level.
   parallel-updates: done
   reauthentication-flow:
     status: exempt
     comment: The integration uses no credentials.
   test-coverage:
-    status: todo
+    status: done
     comment: >-
-      The tests cover the config flow completely. A follow-up change moves to a test package release for Home
-      Assistant 2026.11, adds the setup, unload, coordinator, sensor and diagnostics tests and a 95 % total coverage
-      gate.
+      Every module of the integration is covered at 95 % or more over both test folders, gated in CI by
+      scripts/coverage_gate.py.
 
   # Gold
   devices: done
@@ -87,7 +88,9 @@ rules:
     comment: Every sensor is a primary figure, so none gets an entity category.
   entity-device-class:
     status: exempt
-    comment: Home Assistant has no device class for an efficiency ratio.
+    comment: >-
+      Home Assistant has no device class for an efficiency ratio (power_factor is a different quantity) or for BTU/Wh;
+      the energies are state attributes, not entities.
   entity-disabled-by-default:
     status: done
     comment: >-
@@ -95,16 +98,22 @@ rules:
   entity-translations: done
   exception-translations:
     status: exempt
-    comment: The integration raises no exceptions of its own that reach the user.
+    comment: >-
+      The integration raises no exceptions of its own that reach the user: a failed statistics read makes the
+      affected sensors unavailable, problems in the config and options flows are translated form errors and aborts,
+      and the only setup or unload exceptions come from Home Assistant itself.
   icon-translations: done
   reconfiguration-flow:
     status: exempt
     comment: >-
-      The entry data holds only the name; everything else changes in the options flow, which reloads the entry.
+      The entry data holds only the name; everything else set up in the config flow changes in the options flow,
+      which reloads the entry. The name is the entry title, which Home Assistant renames itself.
   repair-issues: done
   stale-devices:
     status: exempt
-    comment: Each entry has exactly one service device, which is removed with the entry.
+    comment: >-
+      Each entry has exactly one service device, which is removed with the entry. The sensors of a service removed
+      from the mapping are removed from the entity registry at the next load, and the mapping cannot be emptied.
 
   # Platinum
   async-dependency:

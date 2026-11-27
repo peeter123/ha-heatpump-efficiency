@@ -97,14 +97,14 @@ live installation.
   (D2), and the job passes with every module at 95 % or more. If a module is under it, add tests in the same
   group until it is not.
 
-## 4. Silver
+## 4. Gold
 
-- [ ] 4.1 Update `quality_scale.yaml` as in design D8: `entity-unavailable` and `test-coverage` `done` with their
-  comments, and the `log-when-unavailable` comment. Set the manifest's `quality_scale` to `silver`. In
-  `tests_ha/test_quality_scale.py`, replace the expectations of the scenario "Bronze after this change" with
-  "Silver declared", and cite the requirement "Declared tier matches the record". Verify: `python scripts/lint.py`
+- [x] 4.1 Update `quality_scale.yaml` as in design D8: `entity-unavailable` and `test-coverage` `done` with their
+  comments, the `log-when-unavailable` comment, and the four Gold comments. Set the manifest's `quality_scale` to
+  `gold`. In `tests_ha/test_quality_scale.py`, add a test for the scenario "Gold declared" (the generic tier tests
+  covered "Bronze after this change"), and cite the requirement "Declared tier matches the record". Verify: `python scripts/lint.py`
   exits 0; the record test in CI passes.
-- [ ] 4.2 Set the manifest `version` to `0.3.0`. Update the README's Status section: version 0.3.0, the Silver
+- [x] 4.2 Set the manifest `version` to `0.3.0`. Update the README's Status section: version 0.3.0, the Gold
   tier with a link to `quality_scale.yaml`. Verify: the README's version matches the manifest, and
   `python scripts/lint.py` exits 0.
 
@@ -115,7 +115,7 @@ live installation.
   on `main`.
 - [ ] 5.2 [User authorization: tag and release] Tag `v0.3.0` on that commit and publish a GitHub release with
   notes:
-  - Silver;
+  - Gold;
   - unavailable sensors on a failed read, and the info log;
   - the coverage gate;
   - the ruff settings and the reformatted code of `adopt-ruff-lint`.

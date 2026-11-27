@@ -44,11 +44,13 @@ that this change comes after `adopt-ruff-lint`, which is archived.
   and the repair issues, on synthetic statistics in the test recorder.
 - **Coverage gate.** CI measures the coverage of `custom_components/heatpump_efficiency/` over both test folders
   combined, and fails when the total or any module is below 95 %. `config_flow.py` keeps its 100 % gate.
-- **Record and tier.** `entity-unavailable` and `test-coverage` become `done`; the manifest declares `silver`.
+- **Record and tier.** `entity-unavailable` and `test-coverage` become `done`. Every Gold rule
+  is already `done` or `exempt`, so the record then supports Gold, and the manifest declares `gold`, the highest
+  supported tier (owner's decision 2026-11-27, after a re-check of every Gold rule against the code).
 - **Constitution.** `openspec/config.yaml` and `AGENTS.md` name `pytest-homeassistant` and the two coverage tools
   for `tests_ha/`.
 - **README.** The failed-read text, the Development section and the Status section.
-- **Release 0.3.0** at Silver, which also ships the reformatted code of `adopt-ruff-lint`.
+- **Release 0.3.0** at Gold, which also ships the reformatted code of `adopt-ruff-lint`.
 
 ## Capabilities
 
@@ -64,7 +66,7 @@ None.
 - `packaging`:
   - "Home Assistant tests" names `pytest-homeassistant`;
   - "Declared tier backed by the record" is replaced by "Declared tier matches the record", the same rule with a
-    Silver scenario instead of the Bronze one;
+    Gold scenario instead of the Bronze one;
   - a new requirement "Integration coverage gate" adds the 95 % gate.
 
 ## Tools checked
@@ -81,7 +83,7 @@ None.
 
 ## Out of scope
 
-- **Gold and Platinum.** `strict-typing` stays `todo`; no follow-up change is planned yet.
+- **Platinum.** `strict-typing` stays `todo`; no follow-up change is planned yet.
 - **A repair issue for a failed read.** The log lines are what the rule asks for; the statistics health check
   keeps its own repair issues.
 - **Running `tests_ha/` on Windows.** The harness does not load there; CI and Linux or macOS only, as before.

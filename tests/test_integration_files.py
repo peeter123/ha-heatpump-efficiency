@@ -74,7 +74,7 @@ class TestManifest:
             == "https://github.com/peeter123/ha-heatpump-efficiency/issues"
         )
         assert self.manifest["codeowners"] == ["@peeter123"]
-        assert self.manifest["version"] == "0.2.0"
+        assert self.manifest["version"] == "0.3.0"
 
         def strings(value):
             if isinstance(value, str):

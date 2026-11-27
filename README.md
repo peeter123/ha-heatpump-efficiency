@@ -15,9 +15,9 @@ creates no cost entities.
 
 ## Status
 
-Version 0.2.0. The integration is installable through the Home Assistant Marketplace from its GitHub link (see Installation).
+Version 0.3.0. The integration is installable through the Home Assistant Marketplace from its GitHub link (see Installation).
 
-It declares the Bronze tier of Home Assistant's Integration Quality Scale. The record of every rule, with the reason for each exemption and open item, is in [quality_scale.yaml](custom_components/heatpump_efficiency/quality_scale.yaml).
+It declares the Gold tier of Home Assistant's Integration Quality Scale. The record of every rule, with the reason for each exemption and open item, is in [quality_scale.yaml](custom_components/heatpump_efficiency/quality_scale.yaml).
 
 ## Use cases
 

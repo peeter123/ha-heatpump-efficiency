@@ -226,10 +226,23 @@ All tests use synthetic statistics written with `async_import_statistics` in the
   - `entity-unavailable: done`, with a comment that only the sensors whose value needs a failed read become
     unavailable;
   - `test-coverage: done`;
-  - `log-when-unavailable` stays `done`, with a comment that each failure and recovery is logged once at info
-    level;
+  - `log-when-unavailable` stays `done`, with a comment that each new or changed failure and each recovery is
+    logged once at info level;
   - `strict-typing` stays `todo`.
-- **`manifest.json`:** `quality_scale` becomes `silver`, and `version` becomes `0.3.0` in the release group.
+  - **The Gold rules** were re-checked against the code, the README and the rule pages on 2026-11-27: all 21 hold.
+    Four comments are completed:
+    - `entity-device-class`: no device class for an efficiency ratio (`power_factor` is a different quantity) or
+      for BTU/Wh; the energies are state attributes, not entities;
+    - `stale-devices`: the sensors of a service removed from the mapping are removed from the entity registry at
+      the next load, and the mapping cannot be emptied;
+    - `exception-translations`: the integration raises no exceptions of its own; a failed read makes sensors
+      unavailable, flow problems are translated form errors and aborts, and the only setup or unload exceptions
+      come from Home Assistant itself;
+    - `reconfiguration-flow`: everything set up in the config flow except the name changes in the options flow,
+      which reloads the entry; the name is the entry title, which Home Assistant renames itself.
+- **`manifest.json`:** `quality_scale` becomes `gold`, the highest tier the record supports once the two Silver
+  rules are `done` (the requirement "Declared tier matches the record"; owner's decision 2026-11-27). `version`
+  becomes `0.3.0`. The change keeps its id `reach-silver-quality-scale`.
 - **`openspec/config.yaml` Tooling paragraph:**
   - `tests_ha/` may use `pytest-homeassistant` with `pytest-cov` and `coverage`, each at an exact version through
     uv, in CI and locally only on Linux or macOS;
