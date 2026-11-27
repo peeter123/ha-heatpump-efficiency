@@ -107,7 +107,7 @@ class HeatPumpEfficiencyCoordinator(DataUpdateCoordinator[EngineResult]):
             self.engine_state, self.mapping, self._reader, dt_util.utcnow(), tz
         )
         # Log a read error once when it appears or changes, and when it clears, both at
-        # info level (design D6; the affected sensors are unavailable meanwhile).
+        # info level (design D6 of reach-silver-quality-scale; the affected sensors are unavailable meanwhile).
         for key, old, new in error_changes(previous, self.engine_state.errors):
             if new is not None:
                 _LOGGER.info("Statistics read '%s' failed: %s", key, new)

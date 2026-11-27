@@ -121,8 +121,9 @@ The `ha-tests` job runs, in order:
   - 0 when the total and every file reach the threshold;
   - 1 otherwise, printing each file below it with its percentage, and the total;
   - 2 when the report cannot be read.
-- **Scope:** only files under `custom_components/heatpump_efficiency/` count, so a stray path never affects the
-  result.
+- **Scope:** only files under `custom_components/heatpump_efficiency/` count as modules, so a stray file is never
+  checked as a module; the total is coverage's own and counts every measured file, which the `--cov` path source limits
+  to the integration.
 - **Tests** in `tests/test_coverage_gate.py`, on small JSON files written to `tmp_path`: one module below, all at
   or above, an unreadable report.
 - **Alternative rejected:** coverage's `fail_under` checks only the total, and the rule names every module

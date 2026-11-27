@@ -43,7 +43,8 @@ One update (``async_update``):
 3. ``compute`` gives per service and Overall the four period results and the
    daily and monthly series, all ending at the service's coverage end. Every
    service is unknown until the metadata has been read successfully once
-   (whether a statistic is hourly-only is not known before).
+   (whether a statistic is hourly-only is not known before); while that read has
+   failed its results are also ``read_failed`` (``service_read_failed``).
 4. Seasons (design D3, D4, D5). Per service with a season (Heating and Overall:
    the heating season, Cooling: the cooling season; Hot water has none) the
    running season is summed from the cached tables, like year to date, and a
@@ -224,7 +225,7 @@ class PeriodResult:
         None  # ISO in the time zone; set when the period starts before the defrost statistics
     )
     corrected: bool = False  # the service has defrost statistics
-    # A statistics read that the value needs failed (design D4): the sensor is unavailable.
+    # A statistics read that the value needs failed (design D4 of reach-silver-quality-scale): the sensor is unavailable.
     read_failed: bool = False
 
 
@@ -238,7 +239,7 @@ class SeasonResult:
     ``period_start`` is the covered start and ``season_end`` the natural end (ISO,
     in the time zone). ``points`` is the whole history, oldest first
     (``seasons.season_points``). ``read_failed``: a read that the shown season needs
-    failed, so the sensor is unavailable (design D4).
+    failed, so the sensor is unavailable (design D4 of ``reach-silver-quality-scale``).
     """
 
     efficiency: float | None
@@ -360,7 +361,7 @@ def mapped_ids(mapping: Mapping[str, Any]) -> list[str]:
     return sorted(frozenset().union(*(s.all_ids for s in services_of(mapping))))
 
 
-# --- which results depend on a failed read (design D4) ---------------------------
+# --- which results depend on a failed read (design D4 of reach-silver-quality-scale) ---------------------------
 
 
 def failed_sources(state: EngineState) -> frozenset[str]:
@@ -1107,7 +1108,8 @@ def compute(
 
     Every service is unknown until the metadata has been read successfully once
     (``metadata_ok``): before that an hourly-only statistic would be taken for a
-    recorder statistic.
+    recorder statistic. While that read has failed the results are also
+    ``read_failed`` (``service_read_failed``).
     """
     all_ids: frozenset[str] = frozenset().union(*(s.all_ids for s in services))
     hourly_only_ids = eff.hourly_only(state.metadata)
@@ -1169,7 +1171,7 @@ def _season_result(
     ``uncorrected`` is the last season's efficiency without the defrost correction,
     ``defrost_since`` the defrost start (the ``defrost_since`` of the result only when
     the shown point is ``defrost_partial``); both only for a service with defrost IDs.
-    ``read_failed`` marks the sensor unavailable (design D4).
+    ``read_failed`` marks the sensor unavailable (design D4 of ``reach-silver-quality-scale``).
     """
     if not infos:
         return SeasonResult(

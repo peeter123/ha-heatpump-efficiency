@@ -499,7 +499,7 @@ class TestReadPlan:
         self.assert_plan(h, now3 + timedelta(minutes=5), {"5minute"}, False)
 
     def test_failed_read_gives_unknown_periods_and_is_retried(self):
-        """A failed read gives unknown periods and is retried at the next update."""
+        """A failed read gives unknown, read_failed periods and is retried at the next update."""
         stats = make_stats()
         stats.fail = {"month"}
         h = Harness(stats)
@@ -524,7 +524,7 @@ class TestReadPlan:
         assert h.state.errors["month"] is None
 
     def test_first_hours_failure_makes_the_service_unknown_and_is_retried(self):
-        """A failed first-hours read makes services unknown and is retried."""
+        """A failed first-hours read makes services unknown and read_failed and is retried."""
         stats = make_stats()
         stats.fail_single = True
         h = Harness(stats)

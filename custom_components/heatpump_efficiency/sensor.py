@@ -82,7 +82,7 @@ class EfficiencySensor(CoordinatorEntity[HeatPumpEfficiencyCoordinator], SensorE
         Entity.__async_calculate_state, writes the state ``unavailable`` when this is
         False, and Entity.__async_calculate_state adds the state attributes and the
         extra state attributes only in its ``if available:`` branch. A missing result
-        leaves the coordinator's value (design D5).
+        leaves the coordinator's value (design D5 of ``reach-silver-quality-scale``).
         """
         return super().available and not self._read_failed
 

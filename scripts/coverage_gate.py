@@ -3,8 +3,9 @@
 Usage: python scripts/coverage_gate.py REPORT THRESHOLD
 
 REPORT is the JSON report of coverage.py (``coverage json -o coverage.json``) and THRESHOLD a percentage, for
-example 95. Only the files under ``custom_components/heatpump_efficiency/`` count, so a stray path in the report never
-changes the result. The total of the report and every one of those files must reach the threshold. Coverage's own
+example 95. Only the files under ``custom_components/heatpump_efficiency/`` count as modules, so a stray file is never
+checked as a module; the total is coverage's own and counts every measured file, which the ``--cov`` path source limits to
+the integration. The total of the report and every one of those files must reach the threshold. Coverage's own
 ``fail_under`` checks the total only, and the Home Assistant quality scale rule names every module.
 
 Standard library only: it reads ``files`` (a ``summary`` with ``percent_covered`` per path) and ``totals`` (the same

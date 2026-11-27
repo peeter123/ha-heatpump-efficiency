@@ -321,8 +321,9 @@ statistic had no hourly statistics in the 31 days before it is not read again: t
 the first statistics hour moves or the entry is reloaded. A missing reading only makes the seasons that need the
 boundary unknown. A failed boundary read makes the season sensor unavailable while the shown season needs that
 boundary and no earlier read of it is kept; when the read of the following day fails, the figure read before is
-kept and the sensor stays available. While the read of today's statistics fails, no boundary is read (the readings need the last statistics
-times) and the boundary counts as a failed read, so kept readings stay and a boundary never read is unavailable;
+kept and the sensor stays available. While the read of the recent statistics fails, a boundary is not read when one of the statistics it needs takes its
+last statistics time from that read (the `5minute` read for recorder statistics, the `hour` read for external ones;
+the readings need the last statistics times), and the boundary counts as a failed read, so kept readings stay and a boundary never read is unavailable;
 it is read at the first update at which that read works again. Ten updates in a
 day therefore read no finished season more than once. The season that is running is summed from the same cached
 months, days and today's statistics as year to date.

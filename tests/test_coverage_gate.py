@@ -85,7 +85,7 @@ def test_a_total_below_the_threshold_fails_even_when_every_module_reaches_it(
 
 
 def test_only_files_of_the_integration_count(tmp_path):
-    """A file outside the integration folder never changes the result, whichever way its path is written."""
+    """A file outside the integration folder is never checked as a module, whichever way its path is written."""
     report = write_report(
         tmp_path,
         {

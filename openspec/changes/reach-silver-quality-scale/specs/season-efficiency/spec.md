@@ -4,8 +4,8 @@
 A finished season SHALL be read when the entry loads, when it has just ended, when a mapped statistic's history
 start moves, and again after a failed or incomplete read, not on every update. A failed read SHALL make the season
 sensor unavailable only while the shown season needs it and no earlier readings of that boundary are kept; a
-boundary read made while a recent read it needs failed SHALL count as failed; an incomplete read SHALL make only
-the seasons that need it unknown.
+boundary due while a recent read it needs has failed SHALL be skipped as a failed read; an incomplete read SHALL
+make only the seasons that need it unknown.
 
 #### Scenario: Cached seasons
 - **WHEN** ten updates run within the same day between seasons
@@ -25,7 +25,7 @@ the seasons that need it unknown.
 - **THEN** the season sensor stays available with the figure read before
 
 #### Scenario: Boundary read while the recent read fails
-- **WHEN** a finished season's boundary is read at an update at which the read of today's 5-minute statistics fails
+- **WHEN** a finished season's boundary is due to be read at an update at which the read of today's 5-minute statistics fails
 - **THEN** the season sensor is unavailable if that boundary had no readings before, and otherwise stays available
   with the figure read before
 
