@@ -37,8 +37,8 @@ SHALL be retried at the next update.
 A sensor SHALL be unavailable while a statistics read that its value needs failed at its latest attempt, and
 available again at the first update at which that read succeeds; every other sensor of the entry SHALL stay
 available. A period sensor needs its recent read, its ranges' reads, and the recent reads giving the latest
-statistics of a statistic its ranges' tables lack. Every sensor needs the metadata, and a service's sensors their
-first statistics hours, until read once.
+statistics of a statistic its ranges' tables lack. Every sensor whose value needs a read needs the metadata, and
+its service's first statistics hours, until read once.
 
 #### Scenario: Month read fails for one update
 - **WHEN** the read of completed months fails at one update and succeeds at the next

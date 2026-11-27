@@ -12,7 +12,9 @@ Read it, and the active change in `openspec/changes/`, before any work.
   (active changes and `archive/`).
 - `custom_components/<domain>/`: the integration (HACS layout), created by the first change.
 - `tests/`: tests of the pure modules, run by `python scripts/lint.py` under pytest, pytest-asyncio and tzdata at
-  exact versions through uv, without Home Assistant. The time zone tests use `zoneinfo`.
+  exact versions through uv, without Home Assistant. The time zone tests use `zoneinfo`. CI also runs them under
+  coverage (`--cov-append`, the `scripts/lint.py` pins plus pytest-cov and coverage), adding to the data of
+  `tests_ha/`.
 - `tests_ha/`: pytest tests that run the integration in Home Assistant's test harness
   (`pytest-homeassistant`, with `pytest-cov` and `coverage`, the third-party test dependencies of this folder, each
   at an exact version through uv, in CI and locally only on Linux or macOS; the package version is the release equal
@@ -23,11 +25,15 @@ Read it, and the active change in `openspec/changes/`, before any work.
 - `LICENSE`: the MIT licence.
 - `docs/`: images used by `README.md`.
 - `.github/workflows/`: the `validate.yml` workflow (hassfest, HACS action, the lint job that runs
-  `scripts/lint.py`, and the Home Assistant tests).
+  `scripts/lint.py`, and the Home Assistant tests job: `tests_ha/`, then `tests/` under coverage, the config flow
+  gate at 100 %, and `scripts/coverage_gate.py` at 95 % for the total and every module).
 - `scripts/`: `lint.py`, the one entry point of every local check (ruff check, ruff format check, the tests in
   `tests/` and a compile check; `--fix` applies ruff's fixes and the formatter first; needs uv), and `brand.py`,
   the standard-library script that draws the brand images in `custom_components/<domain>/brand/`; its geometry is
   the icon's source.
+  It also holds `coverage_gate.py`, the standard-library coverage gate that CI runs on coverage's JSON report (exit 0;
+  1 when the total or a module is below the threshold, or the report has no file of the integration; 2 for an
+  unreadable report).
 - `private/` (git-ignored): `installation.md` and captures specific to the live installation.
 
 ## Rules in short

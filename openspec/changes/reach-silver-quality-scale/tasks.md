@@ -76,10 +76,10 @@ live installation.
 
 ## 3. Home Assistant tests and the coverage gate
 
-- [ ] 3.1 Add `scripts/coverage_gate.py` (design D3) and `tests/test_coverage_gate.py` for the `packaging`
+- [x] 3.1 Add `scripts/coverage_gate.py` (design D3) and `tests/test_coverage_gate.py` for the `packaging`
   scenarios "Module below the threshold" and "Every module covered", plus an unreadable report (exit 2). Verify:
   `python scripts/lint.py` exits 0.
-- [ ] 3.2 Add the Home Assistant tests of design D7: `tests_ha/test_init.py`, `test_coordinator.py`,
+- [x] 3.2 Add the Home Assistant tests of design D7: `tests_ha/test_init.py`, `test_coordinator.py`,
   `test_sensor.py`, `test_diagnostics.py` and `test_issues.py`.
   - `test_coordinator.py` covers the `period-efficiency` scenarios "Month read fails for one update" (the states
     `unavailable` and back), "Recent read fails" and "Logged once" (`caplog`, info level), through the harness.
@@ -87,7 +87,7 @@ live installation.
     already removed the 2026.10.4 comment).
 
   Verify: `python scripts/lint.py` exits 0 (compile and ruff); the CI run is the check of the harness.
-- [ ] 3.3 Extend the `ha-tests` job with D2 steps 2 to 5: the `tests/` run under coverage with `--cov-append`, the
+- [x] 3.3 Extend the `ha-tests` job with D2 steps 2 to 5: the `tests/` run under coverage with `--cov-append`, the
   config flow gate, `coverage json`, and `python scripts/coverage_gate.py coverage.json 95`. Add a test in
   `tests/test_integration_files.py`:
   - it covers the scenario "Gate in the workflow": both folders under coverage, `--cov-append`, the gate at 95;

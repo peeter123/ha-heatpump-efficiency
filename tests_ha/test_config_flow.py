@@ -1,12 +1,10 @@
 """Tests of the config flow and the options flow, run in Home Assistant's test harness.
 
 The statistics are synthetic: made-up statistic IDs written into the throwaway test recorder. The integration
-itself only reads statistics. ``async_setup_entry`` and ``async_unload_entry`` are patched to return ``True``, so
-these tests cover the flows and not the setup or unload.
+itself only reads statistics. The real setup and unload of the integration run: an entry that a flow creates, or that
+an options change reloads, is set up against the test recorder, and the ``hass`` fixture of the harness unloads it at
+the end of the test. The tests of the setup itself are in ``test_init.py``.
 """
-
-from datetime import timedelta
-from unittest.mock import patch
 
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
@@ -15,16 +13,11 @@ from pytest_homeassistant.components.recorder.common import async_wait_recording
 from custom_components.heatpump_efficiency import sensor_model
 from custom_components.heatpump_efficiency.const import DOMAIN
 from homeassistant import config_entries
-from homeassistant.components.recorder.models import (
-    StatisticData,
-    StatisticMeanType,
-    StatisticMetaData,
-)
-from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er
-from homeassistant.util import dt as dt_util
+
+from .helpers import add_statistic
 
 NAME = "Test pump"
 
@@ -58,56 +51,16 @@ SEASON_FIELDS = {
 
 
 @pytest.fixture(autouse=True)
-async def setup_entry(recorder_mock, hass):
-    """Patch the setup and unload of the entry, so the flows end without starting the coordinator.
+async def recorder_and_hass(recorder_mock, hass):
+    """Start the test recorder before ``hass``, and let the work of a test finish before the instance stops.
 
-    ha-test-harness: pytest-homeassistant 2026.11.2, plugins.py ``hass`` unloads every LOADED entry after its
-    ``yield``. The unload is patched to match the patched setup: no platform was forwarded, so the real unload has
-    nothing to unload (ha-core 2026.11.2 config_entries.py ``ConfigEntries.async_forward_entry_unload``). The
-    entries are unloaded here, while both patches are active. This fixture requests ``hass``, so pytest tears it
-    down before ``hass``; it requests ``recorder_mock`` first, because plugins.py ``recorder_db_url`` asserts that
-    hass is not set up yet.
+    ha-test-harness: pytest-homeassistant 2026.11.2, plugins.py ``recorder_db_url`` asserts that hass is not set up
+    yet, so ``recorder_mock`` is requested first. The ``hass`` fixture unloads every LOADED entry after its
+    ``yield`` (the entries that the real setup loaded). This fixture requests ``hass``, so pytest tears it down
+    before ``hass``.
     """
-    with (
-        patch(
-            "custom_components.heatpump_efficiency.async_setup_entry", return_value=True
-        ) as patched,
-        patch(
-            "custom_components.heatpump_efficiency.async_unload_entry",
-            return_value=True,
-        ),
-    ):
-        yield patched
-        await hass.async_block_till_done()
-        for entry in hass.config_entries.async_entries(DOMAIN):
-            if entry.state is ConfigEntryState.LOADED:
-                await hass.config_entries.async_unload(entry.entry_id)
-        await hass.async_block_till_done()
-
-
-def _add_statistic(
-    hass, statistic_id, *, unit="kWh", unit_class="energy", has_sum=True
-):
-    """Queue one hourly point of a synthetic statistic in the test recorder."""
-    # recorder/models/statistics.py StatisticMetaData and recorder/statistics.py async_import_statistics
-    # (ha-core 2026.11.2): the source of an entity ID statistic is "recorder"; a start on the hour.
-    metadata = StatisticMetaData(
-        mean_type=StatisticMeanType.NONE if has_sum else StatisticMeanType.ARITHMETIC,
-        has_sum=has_sum,
-        name=None,
-        source="recorder",
-        statistic_id=statistic_id,
-        unit_class=unit_class,
-        unit_of_measurement=unit,
-    )
-    start = dt_util.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(
-        hours=1
-    )
-    if has_sum:
-        point = StatisticData(start=start, state=1.0, sum=1.0)
-    else:
-        point = StatisticData(start=start, mean=1.0, min=1.0, max=1.0)
-    async_import_statistics(hass, metadata, [point])
+    yield
+    await hass.async_block_till_done()
 
 
 @pytest.fixture
@@ -124,9 +77,9 @@ async def statistics(hass):
         OTHER_ELECTRICITY,
         DEFROST_HEAT,
     ):
-        _add_statistic(hass, statistic_id)
-    _add_statistic(hass, POWER, unit="W", unit_class="power", has_sum=False)
-    _add_statistic(hass, MEAN_ONLY, has_sum=False)
+        add_statistic(hass, statistic_id)
+    add_statistic(hass, POWER, unit="W", unit_class="power", has_sum=False)
+    add_statistic(hass, MEAN_ONLY, has_sum=False)
     # ha-test-harness: pytest-homeassistant 2026.11.2, components/recorder/common.py async_wait_recording_done
     await async_wait_recording_done(hass)
 
@@ -275,7 +228,7 @@ async def test_user_step_shows_the_form(hass):
 
 
 async def test_user_step_creates_the_entry_with_the_normalized_mapping(
-    hass, statistics, setup_entry
+    hass, statistics
 ):
     """A valid form creates the entry: the name as data, the mapping as options."""
     result = await _submit_user(
@@ -315,12 +268,12 @@ async def test_user_step_creates_the_entry_with_the_normalized_mapping(
     assert result["options"] == expected
     (entry,) = hass.config_entries.async_entries(DOMAIN)
     assert dict(entry.options) == expected
-    setup_entry.assert_called_once()
+    assert entry.state is ConfigEntryState.LOADED  # the real setup ran
 
 
 @pytest.mark.parametrize(("sections", "errors"), ERROR_CASES)
 async def test_user_step_shows_each_validation_error(
-    hass, statistics, setup_entry, sections, errors
+    hass, statistics, sections, errors
 ):
     """Each rule of the pure validation ends in the form again, with its error key."""
     result = await _submit_user(hass, {"name": NAME, **sections})
@@ -329,10 +282,10 @@ async def test_user_step_shows_each_validation_error(
     assert result["step_id"] == "user"
     assert result["errors"] == errors
     assert hass.config_entries.async_entries(DOMAIN) == []
-    setup_entry.assert_not_called()
 
     await _recover_user(hass, result)
-    setup_entry.assert_called_once()
+    (entry,) = hass.config_entries.async_entries(DOMAIN)
+    assert entry.state is ConfigEntryState.LOADED
 
 
 async def test_user_step_requires_a_name(hass, statistics):
@@ -398,11 +351,9 @@ async def test_user_step_accepts_overall_reusing_its_own_heating_output(
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
-async def test_user_step_aborts_when_another_entry_uses_an_output(
-    hass, statistics, setup_entry
-):
+async def test_user_step_aborts_when_another_entry_uses_an_output(hass, statistics):
     """An output statistic of another entry ends the setup as already configured, naming it."""
-    _add_entry(hass, {"heating": HEATING})
+    existing = _add_entry(hass, {"heating": HEATING})
 
     result = await _submit_user(
         hass,
@@ -418,8 +369,8 @@ async def test_user_step_aborts_when_another_entry_uses_an_output(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert result["description_placeholders"] == {"statistics": HEATING_OUTPUT}
-    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
-    setup_entry.assert_not_called()
+    assert hass.config_entries.async_entries(DOMAIN) == [existing]
+    assert existing.state is ConfigEntryState.NOT_LOADED  # nothing was set up
 
 
 async def test_user_step_abort_names_every_shared_statistic_sorted(hass, statistics):
@@ -596,7 +547,7 @@ async def test_options_flow_unit_change_with_statistics_warns_then_saves_on_conf
     """Stored Cooling statistics make the unit change ask first; submitting the step stores it."""
     entry = _add_entry(hass, {"cooling": COOLING})
     with_statistics, _ = _register_cooling_sensors(hass, entry, 2)
-    _add_statistic(hass, with_statistics, unit="W/W", unit_class=None, has_sum=False)
+    add_statistic(hass, with_statistics, unit="W/W", unit_class=None, has_sum=False)
     await async_wait_recording_done(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -626,7 +577,7 @@ async def test_options_flow_unit_change_names_every_sensor_with_statistics(
     entry = _add_entry(hass, {"cooling": COOLING_BTU})
     sensors = _register_cooling_sensors(hass, entry, 2)
     for sensor in sensors:
-        _add_statistic(hass, sensor, unit="BTU/Wh", unit_class=None, has_sum=False)
+        add_statistic(hass, sensor, unit="BTU/Wh", unit_class=None, has_sum=False)
     await async_wait_recording_done(hass)
 
     result = await _submit_options(hass, entry, {"cooling": COOLING})

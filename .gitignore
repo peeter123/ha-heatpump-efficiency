@@ -6,3 +6,4 @@ captures/
 .claude/settings.local.json
 .coverage
 .pytest_cache/
+coverage.json

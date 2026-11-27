@@ -749,14 +749,25 @@ those of Home Assistant core's `pyproject.toml` at tag 2026.11.2, in `pyproject.
 
 The Home Assistant tests in `tests_ha/` run the integration inside Home Assistant's test harness
 (`pytest-homeassistant`, Home Assistant's own test package). They run in CI, or locally on Linux or macOS, because
-the harness does not load on Windows. To run them locally, with uv installed, run from the repository root
+the harness does not load on Windows. CI measures the line and branch coverage of the integration over both folders
+together. The first command below runs the Home Assistant tests, the second runs the tests in `tests/` and adds to the
+same data, the third requires every line and branch of `config_flow.py`, the fourth writes the JSON report, and the
+last is the coverage gate. To run them all locally, with uv installed, run from the repository root
 
 ```sh
 uv run --no-project --python 3.14 --with pytest-homeassistant==2026.11.2 --with pytest-cov==7.1.0 --with coverage==7.16.2 pytest tests_ha -p no:respx --cov=custom_components/heatpump_efficiency --cov-branch --cov-report=
+uv run --no-project --python 3.14 --with pytest==9.0.3 --with pytest-asyncio==1.4.0 --with tzdata==2026.6 --with pytest-cov==7.1.0 --with coverage==7.16.2 pytest tests --cov=custom_components/heatpump_efficiency --cov-branch --cov-append --cov-report=term-missing
 uv run --no-project --python 3.14 --with pytest-homeassistant==2026.11.2 --with pytest-cov==7.1.0 --with coverage==7.16.2 coverage report --include="*/config_flow.py" --fail-under=100
+uv run --no-project --python 3.14 --with pytest-homeassistant==2026.11.2 --with pytest-cov==7.1.0 --with coverage==7.16.2 coverage json -o coverage.json
+python scripts/coverage_gate.py coverage.json 95
 ```
 
-The Home Assistant tests job fails unless `config_flow.py` has 100 % line and branch coverage.
+The run of `tests/` uses the pins of `scripts/lint.py` and no Home Assistant. The Home Assistant tests job fails unless
+`config_flow.py` has 100 % line and branch coverage, and unless the integration in total and every module under
+`custom_components/heatpump_efficiency/` has at least 95 % coverage. The gate (`scripts/coverage_gate.py`, standard
+library only) prints each module below the threshold with its percentage and the total, and exits with 0 when they
+all reach it, 1 when one does not (or when the report has no file of the integration) and 2 when the report
+cannot be read.
 
 GitHub runs four jobs on every push and pull request: hassfest, the HACS action, the lint job (`python
 scripts/lint.py`), and the Home Assistant tests.

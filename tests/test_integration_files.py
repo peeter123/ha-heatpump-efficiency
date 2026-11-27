@@ -337,6 +337,57 @@ class TestLicense:
         assert any(line.startswith("Copyright (c) 2026") for line in text.splitlines())
 
 
+def ha_tests_job() -> str:
+    """The text of the ha-tests job of the workflow."""
+    text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+    return re.split(
+        r"^  [a-z][\w-]*:$",
+        text.split("\n  ha-tests:\n", 1)[1],
+        maxsplit=1,
+        flags=re.MULTILINE,
+    )[0]
+
+
+def pure_run_start(section: str) -> int:
+    """The position of the run of tests/ in the job (``pytest tests``, then a line break or a space)."""
+    found = re.search(r"\bpytest tests\s", section)
+    assert found
+    return found.start()
+
+
+def workflow_commands(section: str) -> dict[str, str]:
+    """The uv commands of the ha-tests job on one line each: the Home Assistant run, the run of tests/, the gates."""
+    commands = []
+    for step in re.split(r"^      - ", section, flags=re.MULTILINE):
+        if "uv run" in step:  # the command, without the name of the step
+            line = " ".join(step.split())
+            commands.append(line[line.index("uv run") :])
+    by_name = {}
+    for command in commands:
+        if "pytest tests_ha" in command:
+            name = "ha"
+        elif re.search(r"\bpytest tests\b(?!_)", command):
+            name = "pure"
+        elif "coverage report" in command:
+            name = "gate"
+        elif "coverage json" in command:
+            name = "json"
+        else:
+            raise AssertionError(command)
+        assert name not in by_name, command
+        by_name[name] = command
+    assert set(by_name) == {"ha", "pure", "gate", "json"}
+    return by_name
+
+
+def pins(command: str) -> dict[str, str]:
+    """The exact ``--with`` pins of a uv command, by package name, and its ``--python``."""
+    found = dict(re.findall(r"--with ([\w.-]+)==(\S+)", command))
+    assert found
+    assert "--python" in command
+    return {**found, "--python": re.search(r"--python (\S+)", command).group(1)}
+
+
 class TestWorkflow:
     """The validate.yml workflow."""
 
@@ -399,33 +450,71 @@ class TestWorkflow:
         )  # respx would import httpx before Home Assistant aliases it
 
     def test_home_assistant_tests_job_gates_config_flow_coverage_at_100_percent(self):
-        """The Home Assistant tests job requires full config flow coverage."""
-        text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
-            encoding="utf-8"
-        )
-        section = re.split(
-            r"^  [a-z][\w-]*:$",
-            text.split("\n  ha-tests:\n", 1)[1],
-            maxsplit=1,
-            flags=re.MULTILINE,
-        )[0]
+        """The Home Assistant tests job requires full config flow coverage, after both runs, in the same environment."""
+        section = ha_tests_job()
         assert "--cov-branch" in section  # every branch counts, not only every line
         assert (
             'coverage report --include="*/config_flow.py" --fail-under=100' in section
         )
-        # The gate runs after the pytest step, in the same uv environment: same Python and same pins.
-        commands = [
-            " ".join(step.split())
-            for step in re.split(r"^      - ", section, flags=re.MULTILINE)
-            if "uv run" in step
-        ]
-        assert len(commands) == 2
+        runs = workflow_commands(section)
+        # The gate reads the data of both runs, and runs in the environment of the first one: same Python and pins.
         assert section.index("pytest tests_ha") < section.index("coverage report")
-        pins = {
-            tuple(re.findall(r"--python \S+|--with \S+", command))
-            for command in commands
+        assert pure_run_start(section) < section.index("coverage report")
+        assert pins(runs["gate"]) == pins(runs["ha"])
+        assert pins(runs["json"]) == pins(runs["ha"])
+
+    def test_home_assistant_tests_job_gates_every_module_at_95_percent(self):
+        """Scenario "Gate in the workflow": both folders under coverage, combined, and the gate at 95."""
+        section = ha_tests_job()
+        runs = workflow_commands(section)
+        source = "--cov=custom_components/heatpump_efficiency"
+        for name in ("ha", "pure"):
+            assert (
+                source in runs[name]
+            )  # a path source, so the files count however they are imported
+            assert "--cov-branch" in runs[name]
+        assert (
+            "--cov-append" in runs["pure"]
+        )  # adds to the data of the Home Assistant tests
+        assert "--cov-append" not in runs["ha"]
+        assert "coverage json -o coverage.json" in runs["json"]
+        assert re.search(
+            r"^\s+run: python scripts/coverage_gate\.py coverage\.json 95$",
+            section,
+            re.MULTILINE,
+        )
+        order = [
+            section.index("pytest tests_ha"),
+            pure_run_start(section),
+            section.index("coverage report"),
+            section.index("coverage json"),
+            section.index("scripts/coverage_gate.py"),
+        ]
+        assert order == sorted(order)
+
+    def test_tests_of_the_pure_modules_run_with_the_pins_of_the_lint_script(self):
+        """The coverage run of tests/ uses the pins of scripts/lint.py plus pytest-cov and coverage, without Home Assistant."""
+        lint = load_lint()
+        runs = workflow_commands(ha_tests_job())
+        pure, ha = pins(runs["pure"]), pins(runs["ha"])
+        assert re.search(r"--python (\S+)", runs["pure"]).group(1) == lint.PYTHON
+        assert re.search(r"--python (\S+)", runs["ha"]).group(1) == lint.PYTHON
+        assert pure["pytest"] == lint.PYTEST_VERSION
+        assert pure["pytest-asyncio"] == lint.PYTEST_ASYNCIO_VERSION
+        assert pure["tzdata"] == lint.TZDATA_VERSION
+        # The two coverage tools are core's pins, the same as in the Home Assistant environment.
+        assert pure["pytest-cov"] == ha["pytest-cov"]
+        assert pure["coverage"] == ha["coverage"]
+        assert set(pure) - {"--python"} == {
+            "pytest",
+            "pytest-asyncio",
+            "tzdata",
+            "pytest-cov",
+            "coverage",
         }
-        assert len(pins) == 1, commands
+        assert (
+            "homeassistant" not in runs["pure"]
+        )  # no Home Assistant, no pytest-homeassistant
 
     def test_tests_import_only_the_standard_library_pytest_and_the_repository(
         self,
@@ -839,6 +928,21 @@ class TestReadme:
             assert "**" + title in troubleshooting, key
         for phrase in ("Diagnostics", "restarts at 0", "at most 2 hours behind"):
             assert phrase in troubleshooting
+
+    def test_development_commands_equal_the_workflow(self):
+        """The commands of the Development section are those of the Home Assistant tests job, in the same order."""
+        readme = (ROOT / "README.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+        development = readme.split("\n## Development", 1)[1].split("\n## ", 1)[0]
+        block = re.findall(r"```sh\n(.*?)```", development, re.DOTALL)[1]
+        commands = block.strip().splitlines()
+        runs = workflow_commands(ha_tests_job())
+        assert commands == [
+            runs["ha"],
+            runs["pure"],
+            runs["gate"],
+            runs["json"],
+            "python scripts/coverage_gate.py coverage.json 95",
+        ]
 
     def test_examples_never_use_statistics_mean(self):
         """The YAML examples never use the mean statistic type."""
