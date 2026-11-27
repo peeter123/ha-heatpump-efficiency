@@ -243,7 +243,7 @@ sections of the same entry, and electrical or defrost statistics, SHALL NOT coun
 - **THEN** the entry is created
 
 #### Scenario: Pure check
-- **WHEN** the standard-library test suite calls the duplicate check with a mapping and the mappings of other
+- **WHEN** the test suite in `tests/` calls the duplicate check with a mapping and the mappings of other
   entries
 - **THEN** it returns exactly the sorted output statistic IDs that are an output in another entry, and nothing when
   there is no other entry
