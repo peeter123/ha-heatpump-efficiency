@@ -250,8 +250,8 @@ split-on-trailing-comma = false
 "scripts/*" = ["T20", "INP001"]
 
 # Adapted: tests/ stays without __init__.py (see the change adopt-ruff-lint, design D4), so it is not a package.
-# Temporary: this change (adopt-ruff-lint) removes PT009, PT027 and D1 from this entry in its groups 2 and 3.
-"tests/*" = ["INP001", "PT009", "PT027", "D1"]
+# Temporary: this change (adopt-ruff-lint) removes D1 from this entry in its group 3.
+"tests/*" = ["INP001", "D1"]
 
 # Adapted: core's "homeassistant/components/*/*/*" entry, relative imports inside the integration, as inside a core
 # component.

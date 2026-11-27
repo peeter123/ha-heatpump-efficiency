@@ -141,7 +141,7 @@
 1. **Inventory first.** Before any conversion, the implementer writes `test-inventory.txt` in the change folder:
    - the output of `pytest --collect-only -q tests`, run in the D2 environment (pytest collects the `unittest`
      classes as they are);
-   - one node ID per line, 469 lines.
+   - one node ID per line: 485 lines, the 469 of the proposal and the 16 tests group 1 added (2026-11-27).
 2. **Assertions by ruff.** `uv tool run ruff@0.17.3 check --select PT009,PT027 --fix --unsafe-fixes tests`
    rewrites `self.assert*` and `assertRaises` into `assert` and `pytest.raises`. The fixes are marked unsafe, so
    every rewritten file is reviewed in the diff.

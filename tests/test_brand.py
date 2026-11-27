@@ -4,8 +4,9 @@ import importlib.util
 from pathlib import Path
 import struct
 import sys
-import unittest
 import zlib
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BRAND = ROOT / "custom_components" / "heatpump_efficiency" / "brand"
@@ -61,21 +62,21 @@ def pixel_at(rows: list[bytes], x: int, y: int) -> tuple[int, ...]:
     return tuple(rows[y][x * 4 : x * 4 + 4])
 
 
-class BrandFilesTest(unittest.TestCase):
+class TestBrandFiles:
     def test_only_the_two_icons(self):
-        self.assertEqual(
-            sorted(p.name for p in BRAND.iterdir()), ["icon.png", "icon@2x.png"]
-        )
+        assert sorted(p.name for p in BRAND.iterdir()) == ["icon.png", "icon@2x.png"]
 
     def check_file(self, name: str, size: int):
         width, height, colour, rows = read_png((BRAND / name).read_bytes())
-        self.assertEqual((width, height, colour), (size, size, 6))
-        self.assertEqual(pixel_at(rows, 0, 0)[3], 0)
+        assert (width, height, colour) == (size, size, 6)
+        assert pixel_at(rows, 0, 0)[3] == 0
         x, y = int(128 * size / 256), int(40 * size / 256)
-        self.assertEqual(pixel_at(rows, x, y), (0x44, 0x88, 0x2E, 255))
-        self.assertEqual(
-            pixel_at(rows, int(128 * size / 256), int(62 * size / 256)),
-            (255, 255, 255, 255),
+        assert pixel_at(rows, x, y) == (0x44, 0x88, 0x2E, 255)
+        assert pixel_at(rows, int(128 * size / 256), int(62 * size / 256)) == (
+            255,
+            255,
+            255,
+            255,
         )
 
     def test_icon(self):
@@ -89,23 +90,23 @@ class BrandFilesTest(unittest.TestCase):
         drawn = brand.draw(256)
         for j, (a, b) in enumerate(zip(committed, drawn, strict=True)):
             worst = max(abs(x - y) for x, y in zip(a, b, strict=True))
-            self.assertLessEqual(worst, 1, f"row {j} differs by {worst}")
+            assert worst <= 1, f"row {j} differs by {worst}"
 
 
-class CoverageTest(unittest.TestCase):
+class TestCoverage:
     def test_half_at_the_edge(self):
-        self.assertEqual(brand.coverage(0.0, 256), 0.5)
+        assert brand.coverage(0.0, 256) == 0.5
 
     def test_clamps(self):
-        self.assertEqual(brand.coverage(100.0, 256), 0.0)
-        self.assertEqual(brand.coverage(-100.0, 256), 1.0)
+        assert brand.coverage(100.0, 256) == 0.0
+        assert brand.coverage(-100.0, 256) == 1.0
 
     def test_distance_scales_with_size(self):
-        self.assertEqual(brand.coverage(0.25, 256), 0.25)
-        self.assertEqual(brand.coverage(0.25, 512), 0.0)
+        assert brand.coverage(0.25, 256) == 0.25
+        assert brand.coverage(0.25, 512) == 0.0
 
 
-class PixelColourTest(unittest.TestCase):
+class TestPixelColour:
     def colour(self, **kwargs):
         shapes = {
             "tile": 0.0,
@@ -120,32 +121,24 @@ class PixelColourTest(unittest.TestCase):
         return brand.pixel_colour(**shapes)
 
     def test_cutout_cancels_the_ring(self):
-        self.assertEqual(
-            self.colour(tile=1.0, ring=1.0, cutout=1.0), (0x44, 0x88, 0x2E, 255)
-        )
+        assert self.colour(tile=1.0, ring=1.0, cutout=1.0) == (0x44, 0x88, 0x2E, 255)
 
     def test_arrow_wins_over_the_cutout(self):
-        self.assertEqual(
-            self.colour(tile=1.0, arrow=1.0, cutout=1.0), (255, 255, 255, 255)
-        )
+        assert self.colour(tile=1.0, arrow=1.0, cutout=1.0) == (255, 255, 255, 255)
 
     def test_alpha_comes_from_the_tile_alone(self):
-        self.assertEqual(self.colour(tile=0.0, cabinet=1.0, arrow=1.0)[3], 0)
-        self.assertEqual(self.colour(tile=0.5)[3], round(127.5))
+        assert self.colour(tile=0.0, cabinet=1.0, arrow=1.0)[3] == 0
+        assert self.colour(tile=0.5)[3] == round(127.5)
 
 
-class PngRoundTripTest(unittest.TestCase):
+class TestPngRoundTrip:
     def test_round_trip(self):
         rows = [bytes(range(12)), bytes(range(100, 112))]
         data = brand.png_bytes(3, 2, rows)
-        self.assertEqual(read_png(data), (3, 2, 6, rows))
+        assert read_png(data) == (3, 2, 6, rows)
 
     def test_corrupt_crc_is_rejected(self):
         data = bytearray(brand.png_bytes(1, 1, [bytes(4)]))
         data[-1] ^= 0xFF
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             read_png(bytes(data))
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -52,13 +52,15 @@ installation.
 
 ## 2. The tests in pytest style
 
-- [ ] 2.1 Before changing any test, write `openspec/changes/adopt-ruff-lint/test-inventory.txt`: the output of
-  `pytest --collect-only -q tests` in the lint environment (design D4, step 1), one node ID per line. Verify: 469
-  node IDs.
-- [ ] 2.2 Convert the assertions with `uv tool run ruff@0.17.3 check --select PT009,PT027 --fix --unsafe-fixes
-  tests` (D4, step 2), then read the diff of every rewritten file. Verify: the suite passes and no `self.assert`
-  call is left.
-- [ ] 2.3 Finish the conversion by hand, as in D4 steps 3 and 4:
+- [x] 2.1 Before changing any test, write `openspec/changes/adopt-ruff-lint/test-inventory.txt`: the output of
+  `pytest --collect-only -q tests` in the lint environment (design D4, step 1), one node ID per line. Verify: 485
+  node IDs, the 469 of the proposal and the 16 tests that group 1 added to `tests/test_integration_files.py`
+  (2026-11-27).
+- [x] 2.2 Convert the assertions with `uv tool run ruff@0.17.3 check --select PT009,PT027 --fix --unsafe-fixes
+  tests` (D4, step 2), then read the diff of every rewritten file. The run adds `--isolated --target-version
+  py314`, because the temporary ignore in `pyproject.toml` covers both rules (2026-11-27). Verify: the suite passes
+  and no unittest `self.assert*` method call is left (the tests' own `assert_*` helpers stay).
+- [x] 2.3 Finish the conversion by hand, as in D4 steps 3 and 4:
   - plain classes renamed to `TestX`;
   - `setup_method`;
   - `pytest.approx` with the same tolerance;
@@ -69,10 +71,10 @@ installation.
     Assistant).
 
   Verify: no file in `tests/` imports `unittest` other than `unittest.mock`, and no class subclasses `TestCase`.
-- [ ] 2.4 Check the inventory as in D4 step 6. Every node ID of `test-inventory.txt` is collected, with the class
+- [x] 2.4 Check the inventory as in D4 step 6. Every node ID of `test-inventory.txt` is collected, with the class
   renamed, or parametrized cases counted under their function. Any other entry is annotated in the file with the
   tests that replace it. Verify: at least 469 tests are collected and the suite passes.
-- [ ] 2.5 Remove `PT009` and `PT027` from the temporary ignore in `pyproject.toml`. Add the test of "No unittest
+- [x] 2.5 Remove `PT009` and `PT027` from the temporary ignore in `pyproject.toml`. Add the test of "No unittest
   test cases" to `tests/test_integration_files.py`. Verify: `python scripts/lint.py` exits 0.
 
 ## 3. Test docstrings

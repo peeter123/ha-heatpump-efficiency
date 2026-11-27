@@ -10,7 +10,6 @@ import re
 import sys
 import tomllib
 import types
-import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "custom_components" / "heatpump_efficiency"
@@ -32,8 +31,8 @@ def load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-class ManifestTest(unittest.TestCase):
-    def setUp(self):
+class TestManifest:
+    def setup_method(self):
         self.manifest = load(PACKAGE / "manifest.json")
 
     def test_keys(self):
@@ -49,27 +48,27 @@ class ManifestTest(unittest.TestCase):
             "issue_tracker",
             "version",
         ):
-            self.assertIn(key, self.manifest)
-        self.assertEqual(self.manifest["domain"], "heatpump_efficiency")
-        self.assertEqual(self.manifest["name"], "Heat Pump Efficiency")
-        self.assertIs(self.manifest["config_flow"], True)
-        self.assertEqual(self.manifest["dependencies"], ["recorder"])
-        self.assertEqual(self.manifest["integration_type"], "service")
-        self.assertEqual(self.manifest["iot_class"], "calculated")
-        self.assertNotIn("requirements", self.manifest)
-        self.assertRegex(self.manifest["version"], r"^\d+\.\d+\.\d+$")
+            assert key in self.manifest
+        assert self.manifest["domain"] == "heatpump_efficiency"
+        assert self.manifest["name"] == "Heat Pump Efficiency"
+        assert self.manifest["config_flow"] is True
+        assert self.manifest["dependencies"] == ["recorder"]
+        assert self.manifest["integration_type"] == "service"
+        assert self.manifest["iot_class"] == "calculated"
+        assert "requirements" not in self.manifest
+        assert re.search(r"^\d+\.\d+\.\d+$", self.manifest["version"])
 
     def test_real_repository_values_and_no_placeholders(self):
-        self.assertEqual(
-            self.manifest["documentation"],
-            "https://github.com/peeter123/ha-heatpump-efficiency",
+        assert (
+            self.manifest["documentation"]
+            == "https://github.com/peeter123/ha-heatpump-efficiency"
         )
-        self.assertEqual(
-            self.manifest["issue_tracker"],
-            "https://github.com/peeter123/ha-heatpump-efficiency/issues",
+        assert (
+            self.manifest["issue_tracker"]
+            == "https://github.com/peeter123/ha-heatpump-efficiency/issues"
         )
-        self.assertEqual(self.manifest["codeowners"], ["@peeter123"])
-        self.assertEqual(self.manifest["version"], "0.2.0")
+        assert self.manifest["codeowners"] == ["@peeter123"]
+        assert self.manifest["version"] == "0.2.0"
 
         def strings(value):
             if isinstance(value, str):
@@ -82,56 +81,53 @@ class ManifestTest(unittest.TestCase):
                     yield from strings(item)
 
         for text in strings(self.manifest):
-            self.assertNotIn("PLACEHOLDER", text)
+            assert "PLACEHOLDER" not in text
 
     def test_categories(self):
         # ha-core 2026.11.2 script/hassfest/manifest.py validate_categories: a parent
         # category listed with its own subcategory is an error.
         categories = self.manifest["categories"]
-        self.assertEqual(
-            categories,
-            ["climate.heat_pumps_air_conditioning", "energy.meters_monitoring"],
-        )
+        assert categories == [
+            "climate.heat_pumps_air_conditioning",
+            "energy.meters_monitoring",
+        ]
         for category in categories:
             parent, _, subcategory = category.partition(".")
             if subcategory:
-                self.assertNotIn(parent, categories)
-        self.assertEqual(len(set(categories)), len(categories))
-        self.assertNotIn("connectivity", self.manifest)
+                assert parent not in categories
+        assert len(set(categories)) == len(categories)
+        assert "connectivity" not in self.manifest
 
     def test_readme_status_matches_manifest(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn(f"Version {self.manifest['version']}.", readme)
-        self.assertIn(
-            f"declares the {self.manifest['quality_scale'].capitalize()} tier", readme
+        assert f"Version {self.manifest['version']}." in readme
+        assert (
+            f"declares the {self.manifest['quality_scale'].capitalize()} tier" in readme
         )
-        self.assertIn(
-            "custom_components/heatpump_efficiency/quality_scale.yaml", readme
-        )
+        assert "custom_components/heatpump_efficiency/quality_scale.yaml" in readme
 
     def test_keys_sorted(self):
         # ha-core 2026.11.2 script/hassfest/manifest.py sort_manifest: domain, name,
         # then alphabetical order.
         keys = list(self.manifest)
-        self.assertEqual(keys[:2], ["domain", "name"])
-        self.assertEqual(keys[2:], sorted(keys[2:]))
+        assert keys[:2] == ["domain", "name"]
+        assert keys[2:] == sorted(keys[2:])
 
     def test_domain_matches_const(self):
-        self.assertIn(
-            f'DOMAIN: Final = "{self.manifest["domain"]}"',
-            (PACKAGE / "const.py").read_text(encoding="utf-8"),
-        )
+        assert f'DOMAIN: Final = "{self.manifest["domain"]}"' in (
+            PACKAGE / "const.py"
+        ).read_text(encoding="utf-8")
 
 
-class HacsTest(unittest.TestCase):
+class TestHacs:
     def test_minimum_home_assistant_version(self):
         hacs = load(ROOT / "hacs.json")
-        self.assertEqual(hacs["name"], "Heat Pump Efficiency")
-        self.assertEqual(hacs["homeassistant"], "2026.11.0")
+        assert hacs["name"] == "Heat Pump Efficiency"
+        assert hacs["homeassistant"] == "2026.11.0"
 
 
-class TranslationsTest(unittest.TestCase):
-    def setUp(self):
+class TestTranslations:
+    def setup_method(self):
         self.translations = load(PACKAGE / "translations" / "en.json")
         self.steps = {
             "config": self.translations["config"]["step"]["user"],
@@ -140,11 +136,11 @@ class TranslationsTest(unittest.TestCase):
 
     def test_every_step_has_text(self):
         for name, step in self.steps.items():
-            self.assertTrue(step["title"], name)
-            self.assertTrue(step["description"], name)
-        self.assertTrue(self.steps["config"]["data"][val.FIELD_NAME])
-        self.assertTrue(self.steps["config"]["data_description"][val.FIELD_NAME])
-        self.assertNotIn("data", self.steps["options"])  # the options form has no name
+            assert step["title"], name
+            assert step["description"], name
+        assert self.steps["config"]["data"][val.FIELD_NAME]
+        assert self.steps["config"]["data_description"][val.FIELD_NAME]
+        assert "data" not in self.steps["options"]  # the options form has no name
 
     def test_every_section_and_field_has_text(self):
         expected = dict.fromkeys(val.SERVICES, val.SERVICE_FIELDS)
@@ -157,115 +153,99 @@ class TranslationsTest(unittest.TestCase):
             expected[service] = (*val.SERVICE_FIELDS, val.FIELD_DEFROST_HEAT)
         expected[val.SECTION_SEASONS] = val.SEASON_FIELDS
         for name, step in self.steps.items():
-            self.assertEqual(set(step["sections"]), set(expected), name)
-            self.assertNotIn(
-                val.SECTION_PLANNED, step["sections"], name
+            assert set(step["sections"]) == set(expected), name
+            assert val.SECTION_PLANNED not in step["sections"], (
+                name
             )  # no planned section
             for section, fields in expected.items():
                 text = step["sections"][section]
-                self.assertTrue(text["name"] and text["description"], (name, section))
+                assert text["name"] and text["description"], (name, section)
                 for key in ("data", "data_description"):
-                    self.assertEqual(set(text[key]), set(fields), (name, section, key))
-                    self.assertTrue(all(text[key].values()), (name, section, key))
+                    assert set(text[key]) == set(fields), (name, section, key)
+                    assert all(text[key].values()), (name, section, key)
 
     def test_defrost_field_text(self):
         for step in self.steps.values():
             for service in val.DEFROST_SERVICES:
                 text = step["sections"][service]
-                self.assertEqual(
-                    text["data"][val.FIELD_DEFROST_HEAT], "Defrost heat statistics"
+                assert text["data"][val.FIELD_DEFROST_HEAT] == "Defrost heat statistics"
+                assert "subtracted" in text["data_description"][val.FIELD_DEFROST_HEAT]
+                assert "Overall" in text["data_description"][val.FIELD_DEFROST_HEAT]
+                assert (
+                    "already counts" in text["data_description"][val.FIELD_DEFROST_HEAT]
                 )
-                self.assertIn(
-                    "subtracted", text["data_description"][val.FIELD_DEFROST_HEAT]
-                )
-                self.assertIn(
-                    "Overall", text["data_description"][val.FIELD_DEFROST_HEAT]
-                )
-                self.assertIn(
-                    "already counts", text["data_description"][val.FIELD_DEFROST_HEAT]
-                )
-                self.assertIn(
-                    "Overall", text["description"]
+                assert (
+                    "Overall" in text["description"]
                 )  # a defrost field alone corrects Overall
             for service in (val.SERVICE_COOLING, val.SERVICE_OVERALL):
-                self.assertNotIn(
-                    val.FIELD_DEFROST_HEAT, step["sections"][service]["data"]
-                )
-        self.assertIn("defrost heat statistics", self.steps["options"]["description"])
+                assert val.FIELD_DEFROST_HEAT not in step["sections"][service]["data"]
+        assert "defrost heat statistics" in self.steps["options"]["description"]
 
     def test_config_flow_has_the_defrost_field_in_the_service_sections_only(self):
         source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
-        self.assertIn(
-            "schema[probatio.Optional(FIELD_DEFROST_HEAT)] = _STATISTICS", source
-        )
-        self.assertEqual(
-            source.count("FIELD_DEFROST_HEAT)"), 1
-        )  # only in the service schema
-        self.assertIn("if service in DEFROST_SERVICES", source)
-        self.assertIn("MINOR_VERSION = 4", source)
-        self.assertNotIn("_planned_schema", source)
-        self.assertNotIn("SECTION_PLANNED", source)
+        assert "schema[probatio.Optional(FIELD_DEFROST_HEAT)] = _STATISTICS" in source
+        assert source.count("FIELD_DEFROST_HEAT)") == 1  # only in the service schema
+        assert "if service in DEFROST_SERVICES" in source
+        assert "MINOR_VERSION = 4" in source
+        assert "_planned_schema" not in source
+        assert "SECTION_PLANNED" not in source
 
     def test_no_translation_mentions_a_price_source_or_a_planned_section(self):
         text = (
             (PACKAGE / "translations" / "en.json").read_text(encoding="utf-8").lower()
         )
         for phrase in ("price", "planned", "cost"):
-            self.assertNotIn(phrase, text, phrase)  # no cost settings
+            assert phrase not in text, phrase  # no cost settings
 
     def test_defrost_errors_have_text_and_the_duplicate_placeholder(self):
         for flow in ("config", "options"):
             errors = self.translations[flow]["error"]
-            self.assertIn("{duplicate}", errors[val.ERROR_DEFROST_DUPLICATE], flow)
-            self.assertNotRegex(errors[val.ERROR_DEFROST_UNUSED], r"{\w+}", flow)
-            self.assertIn("only once", errors[val.ERROR_DEFROST_DUPLICATE])
-            self.assertIn("correct nothing", errors[val.ERROR_DEFROST_UNUSED])
+            assert "{duplicate}" in errors[val.ERROR_DEFROST_DUPLICATE], flow
+            assert not re.search(r"{\w+}", errors[val.ERROR_DEFROST_UNUSED]), flow
+            assert "only once" in errors[val.ERROR_DEFROST_DUPLICATE]
+            assert "correct nothing" in errors[val.ERROR_DEFROST_UNUSED]
             for key in (val.ERROR_DEFROST_DUPLICATE, val.ERROR_DEFROST_UNUSED):
-                self.assertIn(key, val.ERROR_PRIORITY)
+                assert key in val.ERROR_PRIORITY
 
     def test_season_keys_match_the_pure_season_module(self):
-        self.assertEqual(val.SEASON_DATES, seasons.DATE_KEYS)
+        assert val.SEASON_DATES == seasons.DATE_KEYS
 
     def test_every_selector_option_has_text(self):
         selector = self.translations["selector"]
-        self.assertEqual(set(selector), {"month", "cooling_unit"})
-        self.assertEqual(
-            set(selector["month"]["options"]), {str(m) for m in range(1, 13)}
-        )
-        self.assertEqual(
-            set(selector["cooling_unit"]["options"]), set(val.COOLING_UNITS)
-        )
+        assert set(selector) == {"month", "cooling_unit"}
+        assert set(selector["month"]["options"]) == {str(m) for m in range(1, 13)}
+        assert set(selector["cooling_unit"]["options"]) == set(val.COOLING_UNITS)
         for name, options in selector.items():
-            self.assertTrue(all(options["options"].values()), name)
+            assert all(options["options"].values()), name
 
     def test_config_flow_selectors_use_translation_keys(self):
         source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
-        self.assertIn('translation_key="month"', source)
-        self.assertIn('translation_key="cooling_unit"', source)
+        assert 'translation_key="month"' in source
+        assert 'translation_key="cooling_unit"' in source
 
     def test_unit_change_step_is_translated_and_explains_the_warning(self):
         step = self.translations["options"]["step"]["unit_change"]
-        self.assertTrue(step["title"])
+        assert step["title"]
         for phrase in (
             "cannot convert",
             "repair",
             "Settings, Tools, Statistics",
             "never changes",
         ):
-            self.assertIn(phrase, step["description"])
-        self.assertNotIn("data", step)  # a form without fields
-        self.assertIn("{sensors}", step["description"])  # names the affected sensors
+            assert phrase in step["description"]
+        assert "data" not in step  # a form without fields
+        assert "{sensors}" in step["description"]  # names the affected sensors
         source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
-        self.assertIn("async_step_unit_change", source)
-        self.assertIn('step_id="unit_change"', source)
+        assert "async_step_unit_change" in source
+        assert 'step_id="unit_change"' in source
 
     def test_already_configured_abort_names_the_shared_statistics(self):
         text = self.translations["config"]["abort"]["already_configured"]
-        self.assertIn("{statistics}", text)
-        self.assertEqual(set(re.findall(r"{(\w+)}", text)), {"statistics"})
+        assert "{statistics}" in text
+        assert set(re.findall(r"{(\w+)}", text)) == {"statistics"}
         source = (PACKAGE / "config_flow.py").read_text(encoding="utf-8")
-        self.assertIn('reason="already_configured"', source)
-        self.assertIn('{"statistics":', source)
+        assert 'reason="already_configured"' in source
+        assert '{"statistics":' in source
 
     def test_every_error_has_text_and_known_placeholders(self):
         known = set(val.PLACEHOLDERS.values())
@@ -274,115 +254,106 @@ class TranslationsTest(unittest.TestCase):
             expected = set(val.ERRORS)
             if flow == "options":
                 expected.discard(val.ERROR_NAME_REQUIRED)  # no name in the options form
-            self.assertEqual(set(errors), expected, flow)
+            assert set(errors) == expected, flow
             for key, text in errors.items():
-                self.assertTrue(text, key)
-                self.assertLessEqual(set(re.findall(r"{(\w+)}", text)), known, key)
+                assert text, key
+                assert set(re.findall(r"{(\w+)}", text)) <= known, key
         # Each statistic error names its failing choices through its placeholder.
         for code, placeholder in val.PLACEHOLDERS.items():
-            self.assertIn(
-                "{" + placeholder + "}", self.translations["config"]["error"][code]
-            )
+            assert "{" + placeholder + "}" in self.translations["config"]["error"][code]
 
     def test_every_issue_has_a_title_and_a_description_with_known_placeholders(self):
         issues = self.translations["issues"]
-        self.assertEqual(set(issues), set(repairs_model.TRANSLATION_KEYS))
+        assert set(issues) == set(repairs_model.TRANSLATION_KEYS)
         known = set(repairs_model.PLACEHOLDERS) | {repairs_model.LAST_STATISTICS}
         for key, text in issues.items():
-            self.assertEqual(
-                set(text), {"title", "description"}, key
-            )  # non-fixable layout
+            assert set(text) == {"title", "description"}, key  # non-fixable layout
             for field, value in text.items():
-                self.assertTrue(value, (key, field))
-                self.assertLessEqual(
-                    set(re.findall(r"{(\w+)}", value)), known, (key, field)
-                )
-                self.assertNotRegex(
-                    value, r"'[^']*{", (key, field)
+                assert value, (key, field)
+                assert set(re.findall(r"{(\w+)}", value)) <= known, (key, field)
+                assert not re.search(r"'[^']*{", value), (
+                    key,
+                    field,
                 )  # hassfest: none in quotes
-            self.assertIn("{statistic_id}", text["description"], key)
-            self.assertIn("{heat_pump}", text["description"], key)
+            assert "{statistic_id}" in text["description"], key
+            assert "{heat_pump}" in text["description"], key
         # Only statistic_stale has a last statistics time (design D7); no other text may use it.
-        self.assertIn("{last_statistics}", issues["statistic_stale"]["description"])
+        assert "{last_statistics}" in issues["statistic_stale"]["description"]
         for key, text in issues.items():
             if key != "statistic_stale":
-                self.assertNotIn(
-                    "{last_statistics}", text["title"] + text["description"], key
+                assert "{last_statistics}" not in text["title"] + text["description"], (
+                    key
                 )
 
     def test_plain_ascii_text(self):
         text = (PACKAGE / "translations" / "en.json").read_text(encoding="utf-8")
-        self.assertTrue(text.isascii())
+        assert text.isascii()
 
     def test_validation_errors_use_translated_keys(self):
         result = val.validate({}, [], "")
         for code in result.errors.values():
-            self.assertIn(code, self.translations["config"]["error"])
-        self.assertEqual(set(result.errors), {"name", "base"})
+            assert code in self.translations["config"]["error"]
+        assert set(result.errors) == {"name", "base"}
 
 
-class LicenseTest(unittest.TestCase):
+class TestLicense:
     def test_mit_licence_with_copyright_line(self):
         text = (ROOT / "LICENSE").read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("MIT License"))
-        self.assertTrue(
-            any(line.startswith("Copyright (c) 2026") for line in text.splitlines())
-        )
+        assert text.startswith("MIT License")
+        assert any(line.startswith("Copyright (c) 2026") for line in text.splitlines())
 
 
-class WorkflowTest(unittest.TestCase):
+class TestWorkflow:
     def test_validate_workflow_runs_the_checks_on_push_and_pull_request(self):
         text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
             encoding="utf-8"
         )
         lines = [line.rstrip() for line in text.splitlines()]
         for trigger in ("  push:", "  pull_request:"):
-            self.assertIn(trigger, lines)
-        self.assertIn("home-assistant/actions/hassfest", text)
-        self.assertIn("hacs/action", text)
-        self.assertIn("category: integration", text)
-        self.assertIn('python-version: "3.14"', text)
-        self.assertIn("run: python scripts/lint.py", text)
-        self.assertNotIn("unittest discover", text)
+            assert trigger in lines
+        assert "home-assistant/actions/hassfest" in text
+        assert "hacs/action" in text
+        assert "category: integration" in text
+        assert 'python-version: "3.14"' in text
+        assert "run: python scripts/lint.py" in text
+        assert "unittest discover" not in text
 
     def test_workflow_has_four_jobs_and_a_pinned_home_assistant_tests_job(self):
         text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
             encoding="utf-8"
         )
         jobs = text.split("\njobs:\n", 1)[1]
-        self.assertEqual(len(re.findall(r"^  [a-z][\w-]*:$", jobs, re.MULTILINE)), 4)
+        assert len(re.findall(r"^  [a-z][\w-]*:$", jobs, re.MULTILINE)) == 4
         lint = re.split(
             r"^  [a-z][\w-]*:$",
             jobs.split("\n  lint:\n", 1)[1],
             maxsplit=1,
             flags=re.MULTILINE,
         )[0]
-        self.assertIn("name: Lint and tests", lint)
-        self.assertIn("run: python scripts/lint.py", lint)
-        self.assertRegex(lint, r"astral-sh/setup-uv@v\d+\.\d+\.\d+\s")
-        self.assertIn("cache-dependency-glob: scripts/lint.py", lint)
+        assert "name: Lint and tests" in lint
+        assert "run: python scripts/lint.py" in lint
+        assert re.search(r"astral-sh/setup-uv@v\d+\.\d+\.\d+\s", lint)
+        assert "cache-dependency-glob: scripts/lint.py" in lint
         section = re.split(
             r"^  [a-z][\w-]*:$",
             jobs.split("\n  ha-tests:\n", 1)[1],
             maxsplit=1,
             flags=re.MULTILINE,
         )[0]
-        self.assertIn("name: Home Assistant tests", section)
-        self.assertIn("astral-sh/setup-uv@v", section)
-        self.assertRegex(
-            section, r"astral-sh/setup-uv@v\d+\.\d+\.\d+\s"
+        assert "name: Home Assistant tests" in section
+        assert "astral-sh/setup-uv@v" in section
+        assert re.search(
+            r"astral-sh/setup-uv@v\d+\.\d+\.\d+\s", section
         )  # an exact release tag
-        self.assertIn("uv run --no-project", section)
-        self.assertRegex(section, r"--python\s+3\.14\b")
-        self.assertRegex(
-            section, r"--with\s+pytest-homeassistant-custom-component==\d+\.\d+\.\d+\b"
+        assert "uv run --no-project" in section
+        assert re.search(r"--python\s+3\.14\b", section)
+        assert re.search(
+            r"--with\s+pytest-homeassistant-custom-component==\d+\.\d+\.\d+\b", section
         )
-        self.assertRegex(
-            section, r"version:\s*\"?\d+\.\d+\.\d+\"?\s"
+        assert re.search(
+            r"version:\s*\"?\d+\.\d+\.\d+\"?\s", section
         )  # an exact uv version
-        self.assertIn(
-            "pytest tests_ha --cov=custom_components.heatpump_efficiency", section
-        )
+        assert "pytest tests_ha --cov=custom_components.heatpump_efficiency" in section
 
     def test_home_assistant_tests_job_gates_config_flow_coverage_at_100_percent(self):
         text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
@@ -394,11 +365,9 @@ class WorkflowTest(unittest.TestCase):
             maxsplit=1,
             flags=re.MULTILINE,
         )[0]
-        self.assertIn(
-            "--cov-branch", section
-        )  # every branch counts, not only every line
-        self.assertIn(
-            'coverage report --include="*/config_flow.py" --fail-under=100', section
+        assert "--cov-branch" in section  # every branch counts, not only every line
+        assert (
+            'coverage report --include="*/config_flow.py" --fail-under=100' in section
         )
         # The gate runs after the pytest step, in the same uv environment: same Python and same pins.
         commands = [
@@ -406,15 +375,13 @@ class WorkflowTest(unittest.TestCase):
             for step in re.split(r"^      - ", section, flags=re.MULTILINE)
             if "uv run" in step
         ]
-        self.assertEqual(len(commands), 2)
-        self.assertLess(
-            section.index("pytest tests_ha"), section.index("coverage report")
-        )
+        assert len(commands) == 2
+        assert section.index("pytest tests_ha") < section.index("coverage report")
         pins = {
             tuple(re.findall(r"--python \S+|--with \S+", command))
             for command in commands
         }
-        self.assertEqual(len(pins), 1, commands)
+        assert len(pins) == 1, commands
 
     def test_tests_import_only_the_standard_library_pytest_and_the_repository(
         self,
@@ -432,8 +399,8 @@ class WorkflowTest(unittest.TestCase):
                 else:
                     continue
                 for root in roots:
-                    self.assertIn(root, allowed, (path.name, root))
-                    self.assertNotEqual(root, "tests_ha", path.name)
+                    assert root in allowed, (path.name, root)
+                    assert root != "tests_ha", path.name
 
 
 def load_lint():
@@ -447,45 +414,43 @@ def load_lint():
     return module
 
 
-class RuffSettingsTest(unittest.TestCase):
+class TestRuffSettings:
     """The scenarios of the requirement on the ruff settings."""
 
-    def setUp(self):
+    def setup_method(self):
         self.text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.config = tomllib.loads(self.text)
         self.ruff = self.config["tool"]["ruff"]
 
     def test_header_comment_names_the_source_tag_and_ruff_version(self):
         header = self.text.split("[tool.ruff]", 1)[0]
-        self.assertIn("Home Assistant core's pyproject.toml", header)
-        self.assertIn("2026.11.2", header)
-        self.assertIn("0.17.3", header)
+        assert "Home Assistant core's pyproject.toml" in header
+        assert "2026.11.2" in header
+        assert "0.17.3" in header
 
     def test_required_version_names_the_version_of_the_lint_entry_point(self):
         lint = load_lint()
-        self.assertEqual(self.ruff["required-version"], f">={lint.RUFF_VERSION}")
+        assert self.ruff["required-version"] == f">={lint.RUFF_VERSION}"
 
     def test_complexity_is_selected_and_limited_at_25(self):
-        self.assertIn("C", self.ruff["lint"]["select"])
-        self.assertEqual(self.ruff["lint"]["mccabe"]["max-complexity"], 25)
+        assert "C" in self.ruff["lint"]["select"]
+        assert self.ruff["lint"]["mccabe"]["max-complexity"] == 25
 
     def test_target_version_matches_the_lint_python(self):
         lint = load_lint()
-        self.assertEqual(
-            self.ruff["target-version"], "py" + lint.PYTHON.replace(".", "")
-        )
+        assert self.ruff["target-version"] == "py" + lint.PYTHON.replace(".", "")
 
     def test_pytest_settings_are_shared_by_both_test_folders(self):
         options = self.config["tool"]["pytest"]["ini_options"]
-        self.assertEqual(options["asyncio_mode"], "auto")
-        self.assertEqual(options["testpaths"], ["tests"])
-        self.assertFalse((ROOT / "pytest.ini").exists())
+        assert options["asyncio_mode"] == "auto"
+        assert options["testpaths"] == ["tests"]
+        assert not (ROOT / "pytest.ini").exists()
 
 
-class LintScriptTest(unittest.TestCase):
+class TestLintScript:
     """The scenarios of the requirement "One lint entry point"."""
 
-    def setUp(self):
+    def setup_method(self):
         self.lint = load_lint()
         self.calls = []
 
@@ -521,8 +486,8 @@ class LintScriptTest(unittest.TestCase):
             "PYTEST_ASYNCIO_VERSION",
             "TZDATA_VERSION",
         ):
-            self.assertRegex(text, rf'(?m)^{name} = "\d+(\.\d+)+"$', name)
-        self.assertRegex(text, r'(?m)^PYTHON = "3\.14"$')
+            assert re.search(rf'(?m)^{name} = "\d+(\.\d+)+"$', text), name
+        assert re.search(r'(?m)^PYTHON = "3\.14"$', text)
 
     def test_script_uses_only_the_standard_library(self):
         tree = ast.parse((ROOT / "scripts" / "lint.py").read_text(encoding="utf-8"))
@@ -534,17 +499,17 @@ class LintScriptTest(unittest.TestCase):
             else:
                 continue
             for root in roots:
-                self.assertIn(root, sys.stdlib_module_names)
+                assert root in sys.stdlib_module_names
 
     def test_missing_uv_exits_with_2_and_says_uv_is_needed(self):
         status, output = self.run_main(uv=None)
-        self.assertEqual(status, 2)
-        self.assertIn("uv is needed", output)
-        self.assertEqual(self.calls, [])
+        assert status == 2
+        assert "uv is needed" in output
+        assert self.calls == []
 
     def test_all_steps_pass_exits_with_0_and_prints_versions(self):
         status, output = self.run_main()
-        self.assertEqual(status, 0)
+        assert status == 0
         for text in (
             str(ROOT),
             "uv 0.0.0",
@@ -553,76 +518,116 @@ class LintScriptTest(unittest.TestCase):
             f"pytest-asyncio {self.lint.PYTEST_ASYNCIO_VERSION}",
             f"tzdata {self.lint.TZDATA_VERSION}",
         ):
-            self.assertIn(text, output)
+            assert text in output
 
     def test_steps_run_in_order_from_the_root_with_pinned_tools(self):
         self.run_main()
         commands = [" ".join(command) for command, _ in self.calls]
-        self.assertEqual(len(commands), 4)
-        self.assertEqual(
-            commands[0], f"uv tool run ruff@{self.lint.RUFF_VERSION} check ."
+        assert len(commands) == 4
+        assert commands[0] == f"uv tool run ruff@{self.lint.RUFF_VERSION} check ."
+        assert (
+            commands[1] == f"uv tool run ruff@{self.lint.RUFF_VERSION} format --check ."
         )
-        self.assertEqual(
-            commands[1], f"uv tool run ruff@{self.lint.RUFF_VERSION} format --check ."
+        assert "pytest tests -q" in commands[2]
+        assert f"--with pytest=={self.lint.PYTEST_VERSION}" in commands[2]
+        assert (
+            f"--with pytest-asyncio=={self.lint.PYTEST_ASYNCIO_VERSION}" in commands[2]
         )
-        self.assertIn("pytest tests -q", commands[2])
-        self.assertIn(f"--with pytest=={self.lint.PYTEST_VERSION}", commands[2])
-        self.assertIn(
-            f"--with pytest-asyncio=={self.lint.PYTEST_ASYNCIO_VERSION}", commands[2]
-        )
-        self.assertIn(f"--with tzdata=={self.lint.TZDATA_VERSION}", commands[2])
-        self.assertIn(f"--python {self.lint.PYTHON}", commands[2])
-        self.assertIn("-m compileall", commands[3])
-        self.assertIn(f"--python {self.lint.PYTHON}", commands[3])
+        assert f"--with tzdata=={self.lint.TZDATA_VERSION}" in commands[2]
+        assert f"--python {self.lint.PYTHON}" in commands[2]
+        assert "-m compileall" in commands[3]
+        assert f"--python {self.lint.PYTHON}" in commands[3]
         for folder in ("custom_components", "tests", "tests_ha", "scripts"):
-            self.assertIn(folder, commands[3])
-        self.assertEqual({cwd for _, cwd in self.calls}, {ROOT})
+            assert folder in commands[3]
+        assert {cwd for _, cwd in self.calls} == {ROOT}
 
     def test_a_failing_step_exits_with_1_after_running_every_step(self):
         status, output = self.run_main(codes=(1,))
-        self.assertEqual(status, 1)
-        self.assertEqual(len(self.calls), 4)
-        self.assertIn("ruff check", output.rsplit("Failed:", 1)[1])
+        assert status == 1
+        assert len(self.calls) == 4
+        assert "ruff check" in output.rsplit("Failed:", 1)[1]
 
     def test_any_non_zero_code_exits_with_1(self):
         status, _ = self.run_main(codes=(0, 0, 2, 0))
-        self.assertEqual(status, 1)
+        assert status == 1
 
     def test_a_program_that_cannot_start_exits_with_2(self):
         status, _ = self.run_main(codes=(OSError("no such program"),))
-        self.assertEqual(status, 2)
+        assert status == 2
 
     def test_a_program_that_cannot_start_names_the_steps_already_failed(self):
         status, output = self.run_main(codes=(1, OSError("no such program")))
-        self.assertEqual(status, 2)
-        self.assertIn("Failed before that: ruff check", output)
+        assert status == 2
+        assert "Failed before that: ruff check" in output
 
     def test_fix_applies_ruff_fixes_and_the_formatter_first(self):
         status, _ = self.run_main(argv=["--fix"])
-        self.assertEqual(status, 0)
+        assert status == 0
         commands = [" ".join(command) for command, _ in self.calls]
-        self.assertEqual(len(commands), 6)
-        self.assertTrue(commands[0].endswith("check --fix ."))
-        self.assertTrue(commands[1].endswith("format ."))
-        self.assertTrue(commands[2].endswith("check ."))
+        assert len(commands) == 6
+        assert commands[0].endswith("check --fix .")
+        assert commands[1].endswith("format .")
+        assert commands[2].endswith("check .")
 
     def test_the_tests_environment_has_no_home_assistant(self):
         self.run_main()
         tests_command = " ".join(self.calls[2][0])
-        self.assertNotIn("homeassistant", tests_command)
+        assert "homeassistant" not in tests_command
 
 
-class IconsTest(unittest.TestCase):
+class TestNoUnittestTestCases:
+    """The scenario "No unittest test cases" of the requirement on tests in the pytest style."""
+
+    def test_no_test_module_uses_unittest_other_than_mock_or_a_test_case(self):
+        """No module in tests/ imports unittest (except unittest.mock) or subclasses TestCase."""
+        for path in sorted((ROOT / "tests").glob("*.py")):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.Import):
+                    imported = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                    imported = [node.module]
+                    if node.module == "unittest":
+                        assert all(alias.name == "mock" for alias in node.names), (
+                            path.name,
+                            "from unittest import",
+                            [alias.name for alias in node.names],
+                        )
+                        imported = []
+                elif isinstance(node, ast.ClassDef):
+                    for base in node.bases:
+                        name = ast.unparse(base)
+                        assert not name.split(".")[-1].endswith("TestCase"), (
+                            path.name,
+                            node.name,
+                        )
+                    continue
+                elif (
+                    isinstance(node, ast.Attribute)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id == "unittest"
+                ):
+                    # "import unittest.mock" also binds the name unittest.
+                    assert node.attr == "mock", (path.name, f"unittest.{node.attr}")
+                    continue
+                else:
+                    continue
+                for name in imported:
+                    assert name != "unittest", (path.name, name)
+                    if name.split(".")[0] == "unittest":
+                        assert name == "unittest.mock", (path.name, name)
+
+
+class TestIcons:
     """The scenario "An icon for every translation key" of the period-efficiency spec."""
 
-    def setUp(self):
+    def setup_method(self):
         self.icons = load(PACKAGE / "icons.json")["entity"]["sensor"]
         self.translations = load(PACKAGE / "translations" / "en.json")["entity"][
             "sensor"
         ]
 
     def test_keys_equal_the_sensor_translation_keys(self):
-        self.assertEqual(set(self.icons), set(self.translations))
+        assert set(self.icons) == set(self.translations)
         names = (*sensor_model.eff.PERIODS, *set(sensor_model.SEASONS.values()))
         code_keys = {
             sensor_model.translation_key(service, name)
@@ -631,32 +636,32 @@ class IconsTest(unittest.TestCase):
             if name in sensor_model.eff.PERIODS
             or sensor_model.SEASONS.get(service) == name
         }
-        self.assertEqual(set(self.icons), code_keys)
+        assert set(self.icons) == code_keys
 
     def test_every_icon_is_a_default_mdi_icon(self):
         for key, icon in self.icons.items():
-            self.assertEqual(list(icon), ["default"], key)
-            self.assertTrue(icon["default"].startswith("mdi:"), key)
+            assert list(icon) == ["default"], key
+            assert icon["default"].startswith("mdi:"), key
 
     def test_one_icon_per_service_and_four_different_icons(self):
         by_service = {}
         for key, icon in self.icons.items():
             service = max((s for s in val.SERVICES if key.startswith(s + "_")), key=len)
             by_service.setdefault(service, set()).add(icon["default"])
-        self.assertEqual(set(by_service), set(val.SERVICES))
+        assert set(by_service) == set(val.SERVICES)
         for service, found in by_service.items():
-            self.assertEqual(len(found), 1, service)
-        self.assertEqual(len({next(iter(found)) for found in by_service.values()}), 4)
+            assert len(found) == 1, service
+        assert len({next(iter(found)) for found in by_service.values()}) == 4
 
     def test_sensors_set_no_icon_in_code(self):
         for path in PACKAGE.glob("*.py"):
             text = path.read_text(encoding="utf-8")
-            self.assertNotIn("_attr_icon", text, path.name)
-            self.assertNotRegex(text, r"\bicon\s*=", path.name)
-            self.assertNotRegex(text, r"def icon\b", path.name)
+            assert "_attr_icon" not in text, path.name
+            assert not re.search(r"\bicon\s*=", text), path.name
+            assert not re.search(r"def icon\b", text), path.name
 
 
-class ReadmeTest(unittest.TestCase):
+class TestReadme:
     def test_season_and_unit_fields_are_named(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         for label in (
@@ -666,14 +671,14 @@ class ReadmeTest(unittest.TestCase):
             "BTU/Wh",
             "3.412142",
         ):
-            self.assertIn(label, readme)
+            assert label in readme
         for default in (
             "1 October to 30 April",
             "1 June to 30 September",
             "1 April to 31 October",
             "1 December to 28 February",
         ):
-            self.assertIn(default, readme)
+            assert default in readme
 
     def test_defrost_setup_is_documented(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -682,7 +687,7 @@ class ReadmeTest(unittest.TestCase):
         label = translations["config"]["step"]["user"]["sections"]["heating"]["data"][
             val.FIELD_DEFROST_HEAT
         ]
-        self.assertIn("**" + label, setup)
+        assert "**" + label in setup
         for phrase in (
             "one per",  # split counters, one per service
             "dominant service",
@@ -695,23 +700,23 @@ class ReadmeTest(unittest.TestCase):
             "correct nothing",  # defrost_unused
             "moved once",  # the migration of the planned slot
         ):
-            self.assertIn(phrase, setup, phrase)
-        self.assertNotIn(
-            "Defrost heat statistic:", setup
+            assert phrase in setup, phrase
+        assert (
+            "Defrost heat statistic:" not in setup
         )  # the superseded planned slot text
-        self.assertNotIn("two optional slots", setup)
-        self.assertNotIn("Planned (not used yet)", readme)  # the removed section
-        self.assertNotIn("**Price source:**", readme)
-        self.assertIn("Entries from earlier versions", setup)
-        self.assertIn("Cost is not part of the integration", readme)
-        self.assertIn(
-            "five sections", setup
+        assert "two optional slots" not in setup
+        assert "Planned (not used yet)" not in readme  # the removed section
+        assert "**Price source:**" not in readme
+        assert "Entries from earlier versions" in setup
+        assert "Cost is not part of the integration" in readme
+        assert (
+            "five sections" in setup
         )  # Heating, Hot water, Cooling, Overall, Season dates
-        self.assertNotIn("six sections", readme)
+        assert "six sections" not in readme
 
     def test_firmware_entity_ids_are_only_written_as_device_placeholders(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("sensor.<device>_total_defrost_energy", readme)
+        assert "sensor.<device>_total_defrost_energy" in readme
         pattern = re.compile(r"sensor\.[a-z0-9_<>]+_total_[a-z_]*energy[a-z0-9_]*")
         paths = (
             ROOT / "README.md",
@@ -721,9 +726,7 @@ class ReadmeTest(unittest.TestCase):
         )
         for path in paths:
             for found in pattern.findall(path.read_text(encoding="utf-8")):
-                self.assertTrue(
-                    found.startswith("sensor.<device>_"), (path.name, found)
-                )
+                assert found.startswith("sensor.<device>_"), (path.name, found)
 
     def test_every_form_label_is_explained(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -734,40 +737,36 @@ class ReadmeTest(unittest.TestCase):
             labels.add(text["name"])
             labels.update(text["data"].values())
         for label in labels:
-            self.assertIn("**" + label.split(" (")[0], readme, label)
-        self.assertTrue(readme.isascii())
+            assert "**" + label.split(" (")[0] in readme, label
+        assert readme.isascii()
 
     def test_every_issue_title_is_named_in_the_troubleshooting(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("## Troubleshooting", readme)
+        assert "## Troubleshooting" in readme
         troubleshooting = readme.split("## Troubleshooting", 1)[1].split("\n## ", 1)[0]
         translations = load(PACKAGE / "translations" / "en.json")
         for key, text in translations["issues"].items():
             title = text["title"].split(" {")[0]  # the title without its placeholder
-            self.assertIn("**" + title, troubleshooting, key)
+            assert "**" + title in troubleshooting, key
         for phrase in ("Diagnostics", "restarts at 0", "at most 2 hours behind"):
-            self.assertIn(phrase, troubleshooting)
+            assert phrase in troubleshooting
 
     def test_examples_never_use_statistics_mean(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8").replace("\r\n", "\n")
         blocks = re.findall(r"```yaml\n(.*?)```", readme, re.DOTALL)
-        self.assertGreaterEqual(
-            len(blocks), 4
+        assert (
+            len(blocks) >= 4
         )  # entities, daily and monthly charts and the season table
         for block in blocks:
-            self.assertNotRegex(block, r"stat_type\s*:\s*mean")
-            self.assertNotRegex(block, r"stat_types\s*:[^\n]*mean")
-            self.assertNotRegex(
-                block, r"stat_types\s*:\s*\n(\s*-\s*\w+\s*\n)*\s*-\s*mean"
+            assert not re.search(r"stat_type\s*:\s*mean", block)
+            assert not re.search(r"stat_types\s*:[^\n]*mean", block)
+            assert not re.search(
+                r"stat_types\s*:\s*\n(\s*-\s*\w+\s*\n)*\s*-\s*mean", block
             )
-            self.assertNotRegex(block, r"statistics\s*:\s*\n\s+type\s*:\s*mean")
+            assert not re.search(r"statistics\s*:\s*\n\s+type\s*:\s*mean", block)
         joined = "\n".join(blocks)
-        self.assertIn("data_generator", joined)
-        self.assertIn("entity.attributes.daily", joined)
-        self.assertIn("entity.attributes.monthly", joined)
-        self.assertRegex(joined, r"state_attr\([^)]*'seasons'\)")  # the season table
-        self.assertNotRegex(joined, r"stat_types?:\s*(\[\s*)?mean")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert "data_generator" in joined
+        assert "entity.attributes.daily" in joined
+        assert "entity.attributes.monthly" in joined
+        assert re.search(r"state_attr\([^)]*'seasons'\)", joined)  # the season table
+        assert not re.search(r"stat_types?:\s*(\[\s*)?mean", joined)
